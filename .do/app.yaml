@@ -1,0 +1,32 @@
+# DigitalOcean App Platform — STATIC SITE (no Web Service).
+# Este front es Vite/React: solo hace falta build → servir carpeta dist/.
+#
+# En el panel DO:
+# - Create App → GitHub → cyanezv-dev/ecommercecrm
+# - Si el asistente propone "Web Service", volvé atrás o usá "Edit app spec"
+#   / "Import from repo" y elegí esta ruta: .do/app.yaml
+#
+# Docs: https://docs.digitalocean.com/products/app-platform/reference/app-specification/
+
+name: ecommercecrm
+region: nyc
+
+static_sites:
+  - name: storefront
+    github:
+      repo: cyanezv-dev/ecommercecrm
+      branch: main
+      deploy_on_push: true
+    source_dir: /
+    environment_slug: node-js
+    build_command: npm ci && npm run build
+    output_dir: dist
+    index_document: index.html
+    catchall_document: index.html
+    envs:
+      - key: NODE_VERSION
+        value: "22"
+        scope: BUILD_TIME
+      - key: VITE_API_URL
+        value: "https://api.neumahub.com/api"
+        scope: BUILD_TIME

@@ -4,12 +4,12 @@
 #   export DIGITALOCEAN_ACCESS_TOKEN="dop_v1_..."
 # Primera vez (crea la app y muestra el id):
 #   ./deploy/do-app.sh
-# Siguientes (misma app, p. ej. tras editar deploy/digitalocean-app.yaml):
+# Siguientes (misma app, p. ej. tras editar .do/app.yaml):
 #   export DO_APP_ID="uuid-de-la-app"
 #   ./deploy/do-app.sh
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-SPEC="$ROOT/deploy/digitalocean-app.yaml"
+SPEC="$ROOT/.do/app.yaml"
 
 if ! command -v doctl >/dev/null 2>&1; then
   echo "Instalá doctl: https://docs.digitalocean.com/reference/doctl/how-to/install/"
