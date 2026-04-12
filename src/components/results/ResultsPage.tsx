@@ -1107,6 +1107,8 @@ export interface ResultsPageProps {
     date: string
     time: string
   }) => void
+  /** Si el catálogo respondió vacío: URL llamada y claves del JSON (diagnóstico Leadflow). */
+  catalogEmptyHint?: { requestUrl: string; topLevelKeys: string[] } | null
 }
 
 export function ResultsPage({
@@ -1121,6 +1123,7 @@ export function ResultsPage({
   initialComunaId,
   initialDelivery,
   onCheckout,
+  catalogEmptyHint,
 }: ResultsPageProps) {
   const brandName = useBrandStore((s) => s.name)
   const brandLogoUrl = useBrandStore((s) => s.logoUrl)
@@ -1184,6 +1187,25 @@ export function ResultsPage({
         <p className="text-muted-foreground text-sm max-w-md">
           No hay neumáticos en catálogo para la medida indicada. Prueba otra medida o vuelve al inicio.
         </p>
+        {catalogEmptyHint?.requestUrl ? (
+          <div className="mt-2 max-w-2xl w-full rounded-lg border border-border bg-muted/40 px-4 py-3 text-left text-xs text-muted-foreground space-y-2">
+            <p>
+              <span className="font-medium text-foreground">Última petición al API:</span>{" "}
+              <span className="break-all">{catalogEmptyHint.requestUrl}</span>
+            </p>
+            {catalogEmptyHint.topLevelKeys?.length ? (
+              <p>
+                <span className="font-medium text-foreground">Claves en la respuesta:</span>{" "}
+                {catalogEmptyHint.topLevelKeys.join(", ")}
+              </p>
+            ) : null}
+            <p className="text-[11px] leading-relaxed">
+              Si ves claves como <code className="rounded bg-background px-1">data</code> o{" "}
+              <code className="rounded bg-background px-1">result</code> pero ningún listado, el formato del CRM no coincide con lo que espera el front: enviá un ejemplo de JSON del endpoint{" "}
+              <code className="rounded bg-background px-1">/catalog</code> para adaptar el parser.
+            </p>
+          </div>
+        ) : null}
         <Button onClick={onStartOver}>Modificar búsqueda</Button>
       </div>
     )

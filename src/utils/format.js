@@ -12,11 +12,13 @@ export function disponibilidadLabel(horas) {
   return               { label: 'Esta semana',   color: 'yellow' }
 }
 
-/** Descompone medida tipo 205/55R16 en partes */
+/** Descompone medida tipo 205/55R16 (también 205-55-15, 205/55 R16, etc.) */
 export function parseMedida(medida) {
   if (!medida) return { ancho: '', perfil: '', aro: '', raw: '' }
   const m = medida.toString().trim()
-  const re = /(\d{3})\s*[\/\-]\s*(\d{2})\s*[Rr]?\s*(\d{2})/
+  // Ancho 2–3 dígitos (casi siempre 3 en autos livianos)
+  const re =
+    /(\d{2,3})\s*[\/\-]\s*(\d{2})\s*(?:[\/\-]\s*)?[Rr]?\s*(\d{2})\b/
   const match = m.match(re)
   if (match) return { ancho: match[1], perfil: match[2], aro: match[3], raw: m }
   return { ancho: '', perfil: '', aro: '', raw: m }

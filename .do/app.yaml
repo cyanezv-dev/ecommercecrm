@@ -6,6 +6,19 @@
 # - Si el asistente propone "Web Service", volvé atrás o usá "Edit app spec"
 #   / "Import from repo" y elegí esta ruta: .do/app.yaml
 #
+# Conectar con Leadflow (productos / site-brand / comunas):
+# 1) En App Platform → tu static site → Settings → Environment Variables:
+#    - `VITE_API_URL` (Build-time) = URL pública HTTPS del API, con el prefijo real.
+#      Ej. si el backend expone /api/catalog → base `https://tu-dominio.com/api`
+#      (sin barra final).
+# 2) CORS en el backend: Access-Control-Allow-Origin debe incluir el dominio del
+#    static site (ej. https://ecommercecrm-xxxxx.ondigitalocean.app) o el dominio custom.
+#    Si el navegador bloquea las llamadas, en consola verás errores CORS, no "Sin resultados".
+# 3) Tras cambiar variables, forzá un redeploy (Rebuild) para que Vite embeba la URL.
+#
+# El build_command de abajo copia VITE_API_URL a public/api-config.json por si el
+# embed falla; el front también lee ese JSON al arrancar en producción.
+#
 # Docs: https://docs.digitalocean.com/products/app-platform/reference/app-specification/
 
 name: ecommercecrm
@@ -19,7 +32,13 @@ static_sites:
       deploy_on_push: true
     source_dir: /
     environment_slug: node-js
-    build_command: npm ci && npm run build
+    build_command: |
+      set -e
+      npm ci
+      if [ -n "${VITE_API_URL:-}" ]; then
+        node -e "require('fs').writeFileSync('public/api-config.json', JSON.stringify({apiBaseUrl:process.env.VITE_API_URL}))"
+      fi
+      npm run build
     output_dir: dist
     index_document: index.html
     catchall_document: index.html
@@ -27,6 +46,7 @@ static_sites:
       - key: NODE_VERSION
         value: "22"
         scope: BUILD_TIME
+      # Reemplazá en el panel de DO por la URL real de tu Leadflow (HTTPS).
       - key: VITE_API_URL
-        value: "https://api.neumahub.com/api"
+        value: "https://REEMPLAZA-TU-DOMINIO-LEADFLOW.com/api"
         scope: BUILD_TIME
