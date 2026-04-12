@@ -1,0 +1,199 @@
+.page { min-height: 100dvh; display: flex; flex-direction: column; background: var(--white); }
+
+.header {
+  position: sticky; top: 0; z-index: 10;
+  background: rgba(255,255,255,.95);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--gray-1);
+  padding: 14px 20px;
+  display: flex; align-items: center; gap: 16px;
+}
+.back { background: none; border: none; font-size: 14px; color: var(--gray-5); cursor: pointer; }
+.back:hover { color: var(--black); }
+.title { flex: 1; font-size: 15px; font-weight: 700; color: var(--black); }
+.lock { font-size: 18px; }
+
+.main {
+  flex: 1;
+  padding: 20px 20px 48px;
+  max-width: 520px;
+  margin: 0 auto;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* ── Barra resumen ── */
+.orderBar {
+  background: var(--gray-0);
+  border: 1.5px solid var(--gray-1);
+  border-radius: 14px;
+  padding: 16px 20px;
+}
+.orderInfo { display: flex; align-items: baseline; justify-content: space-between; }
+.orderLabel { font-size: 12px; font-weight: 600; color: var(--gray-4); text-transform: uppercase; letter-spacing: .5px; }
+.orderTotal { font-size: 22px; font-weight: 800; color: var(--black); }
+.orderDetail { font-size: 12px; color: var(--gray-4); margin-top: 4px; }
+
+/* ── Sección ── */
+.section { display: flex; flex-direction: column; gap: 12px; }
+.sectionTitle { font-size: 11px; font-weight: 700; color: var(--gray-3); text-transform: uppercase; letter-spacing: .6px; }
+
+/* ── Métodos ── */
+.methodGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.methodBtn {
+  display: flex; align-items: center; gap: 8px; justify-content: center;
+  padding: 14px 12px;
+  border: 2px solid var(--gray-1);
+  border-radius: 12px;
+  background: var(--white);
+  font-size: 14px; font-weight: 600; color: var(--gray-5);
+  cursor: pointer;
+  transition: border-color .15s, color .15s, background .15s;
+}
+.methodBtn:hover { border-color: var(--gray-3); color: var(--black); }
+.methodActive { border-color: var(--black) !important; color: var(--black) !important; background: var(--gray-0) !important; }
+
+/* ── Vista previa tarjeta ── */
+.cardPreview {
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+  border-radius: 18px;
+  padding: 24px 24px 20px;
+  color: #fff;
+  position: relative;
+  overflow: hidden;
+  min-height: 180px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  box-shadow: 0 8px 32px rgba(0,0,0,.22);
+}
+.cardPreview::before {
+  content: '';
+  position: absolute;
+  top: -40px; right: -40px;
+  width: 180px; height: 180px;
+  border-radius: 50%;
+  background: rgba(255,255,255,.06);
+}
+.cardPreview::after {
+  content: '';
+  position: absolute;
+  bottom: -60px; left: 30%;
+  width: 220px; height: 220px;
+  border-radius: 50%;
+  background: rgba(255,255,255,.04);
+}
+.cardChip { width: 28px; }
+.cardNumber {
+  font-size: 20px;
+  letter-spacing: .18em;
+  font-weight: 600;
+  font-family: 'Courier New', monospace;
+  margin-top: 20px;
+}
+.cardMeta {
+  display: flex; align-items: flex-end; gap: 24px;
+  margin-top: 16px;
+  position: relative; z-index: 1;
+}
+.cardMetaLabel { font-size: 10px; text-transform: uppercase; letter-spacing: .08em; opacity: .6; margin-bottom: 2px; }
+.cardMetaVal { font-size: 13px; font-weight: 600; letter-spacing: .04em; }
+.cardBrand {
+  margin-left: auto;
+  font-size: 18px;
+  font-weight: 900;
+  font-style: italic;
+  letter-spacing: -.02em;
+  color: rgba(255,255,255,.9);
+}
+.cardBrandMc {
+  margin-left: auto;
+  display: flex;
+  position: relative;
+  width: 40px; height: 26px;
+}
+.cardBrandMc span {
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  position: absolute;
+}
+.cardBrandMc span:first-child { background: #eb001b; left: 0; opacity: .9; }
+.cardBrandMc span:last-child  { background: #f79e1b; right: 0; opacity: .9; mix-blend-mode: normal; }
+
+/* ── Formulario ── */
+.row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.formGroup { display: flex; flex-direction: column; gap: 6px; }
+.label { font-size: 12px; font-weight: 600; color: var(--gray-5); }
+
+.input {
+  padding: 12px 14px;
+  border: 2px solid var(--gray-1);
+  border-radius: 10px;
+  font-size: 15px;
+  background: var(--white);
+  color: var(--black);
+  outline: none;
+  transition: border-color .15s, box-shadow .15s;
+  width: 100%;
+  box-sizing: border-box;
+}
+.input:focus { border-color: var(--black); box-shadow: 0 0 0 3px rgba(0,0,0,.06); }
+.inputError { border-color: #e53935 !important; }
+.error { font-size: 11px; color: #e53935; margin-top: 2px; }
+
+/* ── Transferencia ── */
+.transferBox {
+  border: 1.5px solid var(--gray-1);
+  border-radius: 14px;
+  padding: 20px;
+  background: var(--gray-0);
+  display: flex; flex-direction: column; gap: 10px;
+}
+.transferRow {
+  display: flex; justify-content: space-between; align-items: center;
+  font-size: 14px; color: var(--gray-5);
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--gray-1);
+}
+.transferRow:last-of-type { border-bottom: none; padding-bottom: 0; }
+.transferTotal { font-size: 17px; color: var(--black); }
+.transferNote {
+  font-size: 12px; color: var(--gray-4);
+  line-height: 1.6;
+  margin-top: 4px;
+}
+
+/* ── Seguridad ── */
+.securityBadge {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 12px; color: var(--gray-3);
+  justify-content: center;
+}
+
+/* ── Botón pagar ── */
+.payBtn {
+  width: 100%;
+  padding: 16px;
+  border: none; border-radius: 14px;
+  background: var(--black);
+  color: var(--white);
+  font-size: 16px; font-weight: 700;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  transition: background .15s, transform .1s;
+  letter-spacing: .01em;
+}
+.payBtn:hover:not(:disabled) { background: #222; transform: translateY(-1px); }
+.payBtn:disabled { opacity: .55; cursor: not-allowed; }
+.btnLoading { background: var(--gray-4) !important; }
+
+.spinner {
+  width: 16px; height: 16px;
+  border: 2px solid rgba(255,255,255,.35);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin .7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }

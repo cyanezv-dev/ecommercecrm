@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useSessionStore } from '@/store/session'
-import { saveQuote, saveOrder, fetchComunas } from '@/utils/api'
+import { saveQuote, fetchComunas } from '@/utils/api'
 import { fmtPrice } from '@/utils/format'
 import styles from './Checkout.module.css'
 
@@ -14,7 +14,7 @@ const ENTREGAS = [
 
 export default function Checkout() {
   const navigate = useNavigate()
-  const { wizard, cart, setCart, setConfirmacion, clearFavorites } = useSessionStore()
+  const { wizard, cart, setCart, setPendingOrder, setConfirmacion, clearFavorites } = useSessionStore()
 
   const [cliente, setCliente] = useState({ nombre: '', telefono: '', email: wizard.email || '' })
   const [entrega, setEntrega] = useState(cart.entrega?.tipo || (cart.taller ? 'taller' : ''))
@@ -56,56 +56,46 @@ export default function Checkout() {
     return Object.keys(e).length === 0
   }
 
-  const handleSubmit = async (tipo) => {
+  const buildPayload = (tipo) => ({
+    contact_phone: cliente.telefono,
+    contact_name:  cliente.nombre,
+    contact_email: cliente.email || wizard.email,
+    channel:       'Ecommerce',
+    agent_name:    'Ecommerce - Web',
+    medida,
+    marca:   producto.brand || producto.marca,
+    modelo:  producto.name  || producto.titulo,
+    cantidad,
+    precio_unitario: precio,
+    total,
+    tipo_servicio:   entrega,
+    direccion:       entrega === 'taller' ? taller?.direccion : direccion,
+    comuna:          wizard.comunaNombre || wizard.comuna,
+    taller_id:       taller?.id,
+    taller_nombre:   taller?.nombre_comercial,
+    fecha_entrega:   wizard.fecha,
+    source:          tipo === 'cotizar' ? 'ecommerce_quote' : 'ecommerce_order',
+  })
+
+  const handleIrAlPago = () => {
     if (!validate()) return
-    setAccion(tipo)
+    const payload = buildPayload('pagar')
+    setPendingOrder({ payload, producto, cantidad, total, entrega, taller, direccion, cliente, fecha: wizard.fecha })
+    navigate('/pago')
+  }
+
+  const handleCotizar = async () => {
+    if (!validate()) return
+    setAccion('cotizar')
     setLoading(true)
     try {
-      const payload = {
-        contact_phone: cliente.telefono,
-        contact_name:  cliente.nombre,
-        contact_email: cliente.email || wizard.email,
-        channel:       'Ecommerce',
-        agent_name:    'Ecommerce - Web',
-        medida,
-        marca:   producto.brand || producto.marca,
-        modelo:  producto.name  || producto.titulo,
-        cantidad,
-        precio_unitario: precio,
-        total,
-        tipo_servicio:   entrega,
-        direccion:       entrega === 'taller' ? taller?.direccion : direccion,
-        comuna:          wizard.comunaNombre || wizard.comuna,
-        taller_id:       taller?.id,
-        taller_nombre:   taller?.nombre_comercial,
-        fecha_entrega:   wizard.fecha,
-        source:          tipo === 'cotizar' ? 'ecommerce_quote' : 'ecommerce_order',
-      }
-
-      let ref = null
-      if (tipo === 'cotizar') {
-        const res = await saveQuote({
-          ...payload,
-          items: [{ product: producto.name || producto.titulo, quantity: cantidad, unit_price: precio, total }]
-        }).catch(() => null)
-        ref = res?.nro_cot || `COT-${Date.now().toString().slice(-6)}`
-      } else {
-        const res = await saveOrder({ ...payload, order: { ...payload, status: 'pendiente_pago' } }).catch(() => null)
-        ref = `ORD-${Date.now().toString().slice(-6)}`
-      }
-
-      setConfirmacion({
-        tipo,
-        ref,
-        producto,
-        cantidad,
-        total,
-        entrega,
-        taller,
-        direccion,
-        cliente,
-        fecha: wizard.fecha,
-      })
+      const payload = buildPayload('cotizar')
+      const res = await saveQuote({
+        ...payload,
+        items: [{ product: producto.name || producto.titulo, quantity: cantidad, unit_price: precio, total }]
+      }).catch(() => null)
+      const ref = res?.nro_cot || `COT-${Date.now().toString().slice(-6)}`
+      setConfirmacion({ tipo: 'cotizar', ref, producto, cantidad, total, entrega, taller, direccion, cliente, fecha: wizard.fecha })
       clearFavorites()
       navigate('/confirmacion')
     } finally {
@@ -264,16 +254,15 @@ export default function Checkout() {
         {/* CTAs */}
         <div className={styles.ctaGroup}>
           <button
-            className={`${styles.btnPrimary} ${loading && accion === 'pagar' ? styles.btnLoading : ''}`}
+            className={styles.btnPrimary}
             disabled={loading}
-            onClick={() => handleSubmit('pagar')}>
-            {loading && accion === 'pagar' ? <span className={styles.spinner} /> : null}
-            Confirmar pedido
+            onClick={handleIrAlPago}>
+            Ir al pago →
           </button>
           <button
             className={`${styles.btnSecondary} ${loading && accion === 'cotizar' ? styles.btnLoading : ''}`}
             disabled={loading}
-            onClick={() => handleSubmit('cotizar')}>
+            onClick={handleCotizar}>
             {loading && accion === 'cotizar' ? <span className={styles.spinner} /> : null}
             Generar cotización
           </button>

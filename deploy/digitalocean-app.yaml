@@ -1,0 +1,45 @@
+# DigitalOcean App Platform — especificación de ejemplo
+# Docs: https://docs.digitalocean.com/products/app-platform/reference/app-specification/
+#
+# Estructura local (referencia): ecommercecrm → este repo; leadflow/backend → API Node;
+# leadflow/frontend → otro front en el monorepo leadflow (no es este ecommercecrm).
+#
+# Uso:
+# 1. Revisá rama (main) si tu repo default es otra.
+# 2. Ajustá VITE_API_URL a la URL real de tu API (misma base que en vite: termina en /api).
+# 3. En DO: Apps → Create App → GitHub → o pegá este YAML en "Edit your app spec".
+#    Necesitás `environment_slug: node-js` para que `npm ci` / Vite corran en el build.
+#
+# Dominio neumahub.com: en la app → Settings → Domains → Add domain → seguí DNS en tu registrador.
+
+name: neumahub-ecommerce
+region: nyc
+
+static_sites:
+  - name: storefront
+    github:
+      repo: cyanezv-dev/ecommercecrm
+      branch: main
+      deploy_on_push: true
+    source_dir: /
+    environment_slug: node-js
+    build_command: npm ci && npm run build
+    output_dir: dist
+    # SPA (React Router): todas las rutas sirven index.html
+    catchall_document: index.html
+    envs:
+      - key: NODE_VERSION
+        value: "22"
+        scope: BUILD_TIME
+      - key: VITE_API_URL
+        value: "https://api.neumahub.com/api"
+        scope: BUILD_TIME
+
+# Si más adelante querés el API Node en el mismo App Platform, agregá un componente "services":
+# services:
+#   - name: api
+#     github: { repo: cyanezv-dev/leadflow, branch: main }
+#     source_dir: backend
+#     run_command: node server.js
+#     http_port: 3001
+#     ...

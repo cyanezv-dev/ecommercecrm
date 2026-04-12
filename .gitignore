@@ -2,3 +2,5 @@ node_modules
 dist
 .env.production
 *.local
+.DS_Store
+Front de ecommerce V0/

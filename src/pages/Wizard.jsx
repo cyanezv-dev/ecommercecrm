@@ -1,26 +1,37 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { AnimatePresence, motion } from 'framer-motion'
+import { ArrowLeft, ArrowRight, Check, Car, Wrench, FileText, HelpCircle, Circle } from 'lucide-react'
 import { useSessionStore } from '@/store/session'
 import { fetchComunas } from '@/utils/api'
+import { searchComunas, bestComunaMatchFromGeocoderText } from '@/utils/comunas'
 import { parseMedida } from '@/utils/format'
+import { useBrandStore } from '@/store/brand'
 import styles from './Wizard.module.css'
 
-// ── Constantes de pasos ────────────────────────────────────────
 const STEPS = ['cantidad', 'necesidad', 'medida', 'comuna', 'fecha', 'email']
 
+const STEP_LABELS = {
+  cantidad:  'Cantidad',
+  necesidad: 'Necesidad',
+  medida:    'Medida',
+  comuna:    'Comuna',
+  fecha:     'Fecha',
+  email:     'Email',
+}
+
 const NECESIDADES = [
-  { key: 'neumaticos',    label: 'Solo neumáticos',             desc: 'Los compro y los instalo por mi cuenta' },
-  { key: 'instalacion',   label: 'Neumáticos + instalación',    desc: 'Quiero instalación en taller o a domicilio' },
-  { key: 'cotizacion',    label: 'Solo cotizar',                desc: 'Quiero ver precios sin compromiso' },
-  { key: 'recomendacion', label: 'Necesito recomendación',      desc: 'No sé qué neumático necesito' },
+  { key: 'neumaticos',    label: 'Solo neumáticos',          desc: 'Los compro y los instalo por mi cuenta',        icon: <Circle    size={22} /> },
+  { key: 'instalacion',   label: 'Neumáticos + instalación', desc: 'Quiero instalación en taller o a domicilio',    icon: <Wrench    size={22} /> },
+  { key: 'cotizacion',    label: 'Solo cotizar',             desc: 'Quiero ver precios sin compromiso',             icon: <FileText  size={22} /> },
+  { key: 'recomendacion', label: 'Necesito recomendación',   desc: 'No sé qué neumático necesito',                  icon: <HelpCircle size={22} /> },
 ]
 
 const FECHAS = [
-  { key: 'hoy',         label: 'Hoy mismo',    icon: '⚡' },
-  { key: 'manana',      label: 'Mañana',        icon: '📅' },
-  { key: 'esta semana', label: 'Esta semana',   icon: '🗓️' },
-  { key: 'flexible',    label: 'Soy flexible',  icon: '😌' },
+  { key: 'hoy',         label: 'Hoy mismo',   icon: '⚡' },
+  { key: 'manana',      label: 'Mañana',       icon: '📅' },
+  { key: 'esta semana', label: 'Esta semana',  icon: '🗓️' },
+  { key: 'flexible',    label: 'Soy flexible', icon: '😌' },
 ]
 
 const MEDIDAS_COMUNES = [
@@ -29,32 +40,150 @@ const MEDIDAS_COMUNES = [
   '225/40R18', '235/35R19',
 ]
 
+// Framer-motion variants
+const questionVariants = {
+  initial: { opacity: 0, y: 20 },
+  animate: { opacity: 1, y: 0 },
+  exit:    { opacity: 0, y: -20 },
+}
+const containerVariants = {
+  animate: { transition: { staggerChildren: 0.05, delayChildren: 0.15 } },
+}
+const itemVariants = {
+  initial: { opacity: 0, y: 16 },
+  animate: { opacity: 1, y: 0, transition: { duration: 0.3, ease: 'easeOut' } },
+}
+
 export default function Wizard() {
   const navigate = useNavigate()
   const { wizard, setWizard, resetWizard } = useSessionStore()
-  const [step, setStep] = useState(0)
-  const [dir, setDir]   = useState(1) // 1=adelante -1=atrás
+  const brandName = useBrandStore((s) => s.name)
+  const brandLogoUrl = useBrandStore((s) => s.logoUrl)
+  const [step, setStep]               = useState(0)
+  const [dir, setDir]                 = useState(1)
   const [medidaInput, setMedidaInput] = useState(wizard.medida || '')
   const [comunaInput, setComunaInput] = useState(wizard.comunaNombre || '')
   const [comunaList, setComunaList]   = useState([])
+  const [locLoading, setLocLoading]   = useState(false)
+  const [locError, setLocError]       = useState('')
   const [fechaCustom, setFechaCustom] = useState('')
   const inputRef = useRef(null)
 
-  // Foco automático al cambiar paso
+  // Foco automático
   useEffect(() => {
-    setTimeout(() => inputRef.current?.focus(), 300)
+    setTimeout(() => inputRef.current?.focus(), 350)
   }, [step])
 
-  // Autocompletar comunas
+  // Autocompletar comunas con debounce + auto-select coincidencia exacta (defensivo: API usa `comuna` u otros nombres)
   useEffect(() => {
-    if (comunaInput.length < 2) { setComunaList([]); return }
-    fetchComunas(comunaInput).then(d => setComunaList(d || [])).catch(() => setComunaList([]))
-  }, [comunaInput])
+    const q = comunaInput.trim()
+    if (q.length < 2) {
+      setComunaList([])
+      return
+    }
+    const timer = setTimeout(() => {
+      fetchComunas(q)
+        .then((list) => {
+          const raw = Array.isArray(list) ? list : []
+          const safe = raw.filter((c) => c && (c.nombre || c.codigo))
+          const qn = q.toLowerCase()
+          const exact = safe.find((c) => (c.nombre || '').toLowerCase() === qn)
+          if (exact && String(exact.codigo || '').length > 0) {
+            setComunaList([])
+            setWizard({
+              comuna: String(exact.codigo),
+              comunaNombre: exact.nombre || String(exact.codigo),
+            })
+          } else {
+            setComunaList(safe)
+          }
+        })
+        .catch(() => setComunaList(searchComunas(q, 8)))
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [comunaInput, setWizard])
+
+  const handleUseLocation = async () => {
+    if (!navigator.geolocation) {
+      setLocError('Tu navegador no soporta geolocalización')
+      return
+    }
+    setLocLoading(true)
+    setLocError('')
+    try {
+      const pos = await new Promise((res, rej) => {
+        navigator.geolocation.getCurrentPosition(res, rej, {
+          enableHighAccuracy: false,
+          timeout: 18000,
+          maximumAge: 120000,
+        })
+      })
+      const { latitude, longitude } = pos.coords
+      const url = `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json&accept-language=es&zoom=18`
+      const resp = await fetch(url, { headers: { Accept: 'application/json' } })
+      if (!resp.ok) {
+        setLocError('No pudimos consultar el mapa. Buscá la comuna abajo.')
+        return
+      }
+      const data = await resp.json()
+      const addr = data.address || {}
+      const cityLine =
+        addr.city ||
+        addr.town ||
+        addr.village ||
+        addr.municipality ||
+        addr.county ||
+        addr.city_district ||
+        addr.suburb ||
+        addr.neighbourhood ||
+        addr.hamlet ||
+        ''
+
+      const displayHints = String(data.display_name || '')
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .slice(0, 5)
+        .join(' ')
+
+      let found =
+        bestComunaMatchFromGeocoderText(cityLine) ||
+        bestComunaMatchFromGeocoderText([addr.suburb, addr.city || addr.town].filter(Boolean).join(' ')) ||
+        bestComunaMatchFromGeocoderText(displayHints)
+
+      if (!found && cityLine) {
+        const remote = await fetchComunas(cityLine).catch(() => searchComunas(cityLine, 8))
+        const list = Array.isArray(remote) ? remote : []
+        if (list[0]?.codigo) found = list[0]
+      }
+
+      if (found) {
+        setComunaInput(found.nombre)
+        setComunaList([])
+        setWizard({ comuna: String(found.codigo), comunaNombre: found.nombre })
+        return
+      }
+
+      if (cityLine) setComunaInput(cityLine)
+      setLocError('No encontramos esa zona en el listado de comunas. Refiná la búsqueda arriba.')
+    } catch (e) {
+      const code = typeof e?.code === 'number' ? e.code : null
+      if (code === 1)
+        setLocError('Ubicación bloqueada. Permití el acceso en el navegador o escribí la comuna.')
+      else if (code === 2)
+        setLocError('Ubicación no disponible. Escribí la comuna manualmente.')
+      else if (code === 3)
+        setLocError('Tiempo agotado. Reintentá o escribí la comuna.')
+      else setLocError('No pudimos usar tu ubicación. Escribí la comuna.')
+    } finally {
+      setLocLoading(false)
+    }
+  }
 
   const goNext = () => {
     setDir(1)
     if (step < STEPS.length - 1) setStep(s => s + 1)
-    else handleFinish()
+    else navigate('/resultados')
   }
   const goBack = () => {
     if (step === 0) return
@@ -62,73 +191,87 @@ export default function Wizard() {
     setStep(s => s - 1)
   }
 
-  const handleFinish = () => {
-    navigate('/resultados')
-  }
-
   const canContinue = () => {
     switch (STEPS[step]) {
-      case 'cantidad':   return wizard.cantidad >= 1
-      case 'necesidad':  return !!wizard.necesidad
-      case 'medida':     return wizard.ancho && wizard.perfil && wizard.aro
-      case 'comuna':     return !!wizard.comuna
-      case 'fecha':      return !!wizard.fecha
-      case 'email':      return true // email es opcional
-      default:           return true
+      case 'cantidad':  return wizard.cantidad >= 1
+      case 'necesidad': return !!wizard.necesidad
+      case 'medida':    return wizard.ancho && wizard.perfil && wizard.aro
+      case 'comuna':    return !!wizard.comuna
+      case 'fecha':     return !!wizard.fecha
+      case 'email':     return true
+      default:          return true
     }
   }
 
-  // ── Renders de cada paso ─────────────────────────────────────
-
+  // ── Paso: Cantidad ──────────────────────────────────────────
   function StepCantidad() {
     const qty = wizard.cantidad || 4
     return (
       <div className={styles.stepContent}>
-        <div className={styles.question}>¿Cuántos neumáticos necesitas?</div>
-        <div className={styles.subtitle}>Selecciona la cantidad o escríbela</div>
-        <div className={styles.qtyRow}>
-          {[1, 2, 3, 4].map(n => (
-            <button key={n}
-              className={`${styles.qtyBtn} ${qty === n ? styles.qtyActive : ''}`}
-              onClick={() => { setWizard({ cantidad: n }); setTimeout(goNext, 150) }}>
+        <motion.div
+          variants={containerVariants}
+          initial="initial"
+          animate="animate"
+          className={styles.numberGrid}
+        >
+          {[1, 2, 3, 4, 5, 6].map(n => (
+            <motion.button key={n} variants={itemVariants}
+              className={`${styles.numBtn} ${qty === n ? styles.numBtnActive : ''}`}
+              onClick={() => { setWizard({ cantidad: n }); setTimeout(goNext, 300) }}>
               {n}
-            </button>
+            </motion.button>
           ))}
-        </div>
-        <div className={styles.qtyCustom}>
+        </motion.div>
+        <motion.div variants={itemVariants} initial="initial" animate="animate" className={styles.qtyCustom}>
           <input
             ref={inputRef}
             type="number" min="1" max="20"
             className={styles.input}
             placeholder="Otra cantidad..."
-            value={qty > 4 ? qty : ''}
+            value={qty > 6 ? qty : ''}
             onChange={e => setWizard({ cantidad: parseInt(e.target.value) || 1 })}
             onKeyDown={e => e.key === 'Enter' && canContinue() && goNext()}
           />
-        </div>
+        </motion.div>
       </div>
     )
   }
 
+  // ── Paso: Necesidad ─────────────────────────────────────────
   function StepNecesidad() {
     return (
-      <div className={styles.stepContent}>
-        <div className={styles.question}>¿Qué necesitas?</div>
-        <div className={styles.subtitle}>Cuéntanos qué buscas</div>
-        <div className={styles.optList}>
-          {NECESIDADES.map(n => (
-            <button key={n.key}
-              className={`${styles.optCard} ${wizard.necesidad === n.key ? styles.optActive : ''}`}
-              onClick={() => { setWizard({ necesidad: n.key }); setTimeout(goNext, 150) }}>
-              <span className={styles.optLabel}>{n.label}</span>
-              <span className={styles.optDesc}>{n.desc}</span>
-            </button>
-          ))}
-        </div>
-      </div>
+      <motion.div
+        variants={containerVariants}
+        initial="initial"
+        animate="animate"
+        className={styles.optList}
+      >
+        {NECESIDADES.map(n => {
+          const active = wizard.necesidad === n.key
+          return (
+            <motion.button key={n.key} variants={itemVariants}
+              className={`${styles.optCard} ${active ? styles.optActive : ''}`}
+              onClick={() => { setWizard({ necesidad: n.key }); setTimeout(goNext, 300) }}>
+              <div className={styles.optLeft}>
+                <div className={`${styles.optIcon} ${active ? styles.optIconActive : ''}`}>
+                  {n.icon}
+                </div>
+                <div>
+                  <span className={styles.optLabel}>{n.label}</span>
+                  <span className={styles.optDesc}>{n.desc}</span>
+                </div>
+              </div>
+              <div className={`${styles.optCheck} ${active ? styles.optCheckActive : ''}`}>
+                {active && <Check size={14} />}
+              </div>
+            </motion.button>
+          )
+        })}
+      </motion.div>
     )
   }
 
+  // ── Paso: Medida ────────────────────────────────────────────
   function StepMedida() {
     const handleMedida = (m) => {
       const p = parseMedida(m)
@@ -137,61 +280,92 @@ export default function Wizard() {
     }
     return (
       <div className={styles.stepContent}>
-        <div className={styles.question}>¿Qué medida necesitas?</div>
-        <div className={styles.subtitle}>Está en el flanco del neumático. Ej: 205/55R16</div>
-        <input
-          ref={inputRef}
-          type="text"
-          className={`${styles.input} ${styles.inputLg}`}
-          placeholder="205/55R16"
-          value={medidaInput}
-          onChange={e => handleMedida(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && canContinue() && goNext()}
-        />
-        {wizard.ancho && (
-          <div className={styles.medidaParsed}>
-            <span>Ancho <strong>{wizard.ancho}</strong></span>
-            <span>Perfil <strong>{wizard.perfil}</strong></span>
-            <span>Aro <strong>R{wizard.aro}</strong></span>
-          </div>
-        )}
-        <div className={styles.medidaList}>
-          <div className={styles.medidaListLabel}>Medidas frecuentes:</div>
-          <div className={styles.medidaChips}>
-            {MEDIDAS_COMUNES.map(m => (
-              <button key={m} className={`${styles.chip} ${wizard.medida === m ? styles.chipActive : ''}`}
-                onClick={() => { handleMedida(m); setTimeout(goNext, 200) }}>
-                {m}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  function StepComuna() {
-    return (
-      <div className={styles.stepContent}>
-        <div className={styles.question}>¿Dónde necesitas los neumáticos?</div>
-        <div className={styles.subtitle}>Ciudad o comuna para instalación o despacho</div>
-        <div className={styles.comunaWrap}>
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
           <input
             ref={inputRef}
             type="text"
             className={`${styles.input} ${styles.inputLg}`}
-            placeholder="Buscar comuna..."
-            value={comunaInput}
-            onChange={e => setComunaInput(e.target.value)}
+            placeholder="205/55R16"
+            value={medidaInput}
+            onChange={e => handleMedida(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && canContinue() && goNext()}
           />
+        </motion.div>
+        {wizard.ancho && (
+          <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+            className={styles.medidaParsed}>
+            <span>Ancho <strong>{wizard.ancho}</strong></span>
+            <span>Perfil <strong>{wizard.perfil}</strong></span>
+            <span>Aro <strong>R{wizard.aro}</strong></span>
+          </motion.div>
+        )}
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}>
+          <div className={styles.medidaListLabel}>Medidas frecuentes</div>
+          <div className={styles.medidaChips}>
+            {MEDIDAS_COMUNES.map((m, i) => (
+              <motion.button key={m}
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.2 + i * 0.03 }}
+                className={`${styles.chip} ${wizard.medida === m ? styles.chipActive : ''}`}
+                onClick={() => { handleMedida(m); setTimeout(goNext, 200) }}>
+                {m}
+              </motion.button>
+            ))}
+          </div>
+        </motion.div>
+      </div>
+    )
+  }
+
+  // ── Paso: Comuna ────────────────────────────────────────────
+  function StepComuna() {
+    const isSelected = !!wizard.comuna
+    return (
+      <div className={styles.stepContent}>
+        <motion.button
+          initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
+          className={styles.locBtn}
+          onClick={handleUseLocation}
+          disabled={locLoading}
+          type="button">
+          <span className={styles.locIcon}>{locLoading ? '⏳' : '📍'}</span>
+          {locLoading ? 'Detectando ubicación…' : 'Usar mi ubicación'}
+        </motion.button>
+
+        {locError && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className={styles.locError}>
+            {locError}
+          </motion.div>
+        )}
+
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}
+          className={styles.locDivider}>
+          <span>o escríbela</span>
+        </motion.div>
+
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}
+          className={styles.comunaWrap}>
+          <input
+            ref={inputRef}
+            type="text"
+            className={`${styles.input} ${styles.inputLg} ${isSelected ? styles.inputOk : ''}`}
+            placeholder="Buscar comuna..."
+            value={comunaInput}
+            onChange={e => {
+              setComunaInput(e.target.value)
+              setLocError('')
+              if (wizard.comuna) setWizard({ comuna: '', comunaNombre: '' })
+            }}
+            onKeyDown={e => e.key === 'Enter' && canContinue() && goNext()}
+          />
+          {isSelected && <span className={styles.inputOkIcon}><Check size={18} /></span>}
           {comunaList.length > 0 && (
             <div className={styles.comunaDropdown}>
               {comunaList.map(c => (
                 <button key={c.codigo} className={styles.comunaItem}
                   onClick={() => {
-                    setComunaInput(c.nombre)
-                    setComunaList([])
+                    setComunaInput(c.nombre); setComunaList([])
                     setWizard({ comuna: c.codigo, comunaNombre: c.nombre })
                     setTimeout(goNext, 150)
                   }}>
@@ -201,109 +375,194 @@ export default function Wizard() {
               ))}
             </div>
           )}
-        </div>
+        </motion.div>
       </div>
     )
   }
 
+  // ── Paso: Fecha ─────────────────────────────────────────────
   function StepFecha() {
     return (
       <div className={styles.stepContent}>
-        <div className={styles.question}>¿Para cuándo los necesitas?</div>
-        <div className={styles.subtitle}>Te ayuda a mostrarte las opciones más rápidas</div>
-        <div className={styles.fechaGrid}>
+        <motion.div variants={containerVariants} initial="initial" animate="animate"
+          className={styles.fechaGrid}>
           {FECHAS.map(f => (
-            <button key={f.key}
+            <motion.button key={f.key} variants={itemVariants}
               className={`${styles.fechaCard} ${wizard.fecha === f.key ? styles.fechaActive : ''}`}
-              onClick={() => { setWizard({ fecha: f.key }); setTimeout(goNext, 150) }}>
+              onClick={() => { setWizard({ fecha: f.key }); setTimeout(goNext, 300) }}>
               <span className={styles.fechaIcon}>{f.icon}</span>
               <span className={styles.fechaLabel}>{f.label}</span>
-            </button>
+            </motion.button>
           ))}
-        </div>
-        <div className={styles.fechaCustomWrap}>
+        </motion.div>
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }}
+          className={styles.fechaCustomWrap}>
           <input
             type="date"
             className={styles.input}
             value={fechaCustom}
             min={new Date().toISOString().split('T')[0]}
-            onChange={e => {
-              setFechaCustom(e.target.value)
-              setWizard({ fecha: e.target.value })
-            }}
+            onChange={e => { setFechaCustom(e.target.value); setWizard({ fecha: e.target.value }) }}
           />
-        </div>
+        </motion.div>
       </div>
     )
   }
 
+  // ── Paso: Email ─────────────────────────────────────────────
   function StepEmail() {
     return (
       <div className={styles.stepContent}>
-        <div className={styles.question}>¿A dónde enviamos tu cotización?</div>
-        <div className={styles.subtitle}>Opcional — te enviamos precios y disponibilidad</div>
-        <input
-          ref={inputRef}
-          type="email"
-          className={`${styles.input} ${styles.inputLg}`}
-          placeholder="tu@email.com"
-          value={wizard.email || ''}
-          onChange={e => setWizard({ email: e.target.value })}
-          onKeyDown={e => e.key === 'Enter' && goNext()}
-        />
-        <button className={styles.skipBtn} onClick={goNext}>
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
+          <input
+            ref={inputRef}
+            type="email"
+            className={`${styles.input} ${styles.inputLg}`}
+            placeholder="tu@email.com"
+            value={wizard.email || ''}
+            onChange={e => setWizard({ email: e.target.value })}
+            onKeyDown={e => e.key === 'Enter' && goNext()}
+          />
+        </motion.div>
+        <motion.button initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }}
+          className={styles.skipBtn} onClick={goNext}>
           Omitir por ahora →
-        </button>
+        </motion.button>
       </div>
     )
   }
 
-  const STEP_COMPONENTS = [
-    <StepCantidad  key="cantidad"  />,
-    <StepNecesidad key="necesidad" />,
-    <StepMedida    key="medida"    />,
-    <StepComuna    key="comuna"    />,
-    <StepFecha     key="fecha"     />,
-    <StepEmail     key="email"     />,
-  ]
+  const renderStep = () => {
+    switch (STEPS[step]) {
+      case 'cantidad':  return StepCantidad()
+      case 'necesidad': return StepNecesidad()
+      case 'medida':    return StepMedida()
+      case 'comuna':    return StepComuna()
+      case 'fecha':     return StepFecha()
+      case 'email':     return StepEmail()
+      default:          return null
+    }
+  }
+
+  const STEP_SUBTITLES = {
+    cantidad:  'Selecciona la cantidad que deseas cotizar',
+    necesidad: 'Selecciona el tipo de servicio que te interesa',
+    medida:    'La encuentras en el costado del neumático. Ej: 205/55R16',
+    comuna:    'Ciudad o comuna para instalación o despacho',
+    fecha:     'Te ayuda a mostrarte las opciones más rápidas',
+    email:     'Opcional — te enviamos precios y disponibilidad',
+  }
+
+  const STEP_QUESTIONS = {
+    cantidad:  '¿Cuántos neumáticos necesitas?',
+    necesidad: '¿Qué necesitas?',
+    medida:    '¿Qué medida necesitas?',
+    comuna:    '¿Dónde necesitas los neumáticos?',
+    fecha:     '¿Para cuándo los necesitas?',
+    email:     '¿A dónde enviamos tu cotización?',
+  }
 
   const progress = ((step + 1) / STEPS.length) * 100
+  const currentStepKey = STEPS[step]
 
   return (
     <div className={styles.page}>
-      {/* Header */}
-      <header className={styles.header}>
-        <button className={styles.logoBtn} onClick={() => { resetWizard(); setStep(0) }}>
-          <span className={styles.logoMark}>●</span>
-          <span className={styles.logoText}>NeumaticosYa</span>
-        </button>
-        <div className={styles.stepMeta}>{step + 1} / {STEPS.length}</div>
-      </header>
-
-      {/* Barra de progreso */}
+      {/* Progress bar — fixed top, animated con framer-motion */}
       <div className={styles.progressBar}>
-        <div className={styles.progressFill} style={{ width: `${progress}%` }} />
+        <motion.div
+          className={styles.progressFill}
+          initial={{ width: 0 }}
+          animate={{ width: `${progress}%` }}
+          transition={{ duration: 0.4, ease: 'easeOut' }}
+        />
       </div>
 
-      {/* Contenido del paso */}
-      <main className={styles.main}>
-        <div className={`${styles.stepWrapper} ${dir > 0 ? styles.slideIn : styles.slideBack}`} key={step}>
-          {STEP_COMPONENTS[step]}
-        </div>
+      {/* Header fijo con backdrop blur */}
+      <header className={styles.header}>
+        <button
+          className={`${styles.backBtn} ${step === 0 ? styles.backBtnHidden : ''}`}
+          onClick={goBack}
+          aria-label="Atrás">
+          <ArrowLeft size={16} />
+          Atrás
+        </button>
+
+        <button className={styles.logoBtn} onClick={() => { resetWizard(); setStep(0) }} type="button">
+          {brandLogoUrl ? (
+            <img src={brandLogoUrl} alt={brandName} className={styles.logoImg} />
+          ) : (
+            <>
+              <Car size={18} className={styles.logoIcon} />
+              <span className={styles.logoText}>{brandName}</span>
+            </>
+          )}
+        </button>
+
+        <span className={styles.stepMeta}>
+          {step + 1} de {STEPS.length}
+        </span>
+      </header>
+
+      {/* Contenido centrado verticalmente */}
+      <main className={`${styles.main} ${currentStepKey === 'comuna' ? styles.mainComunaRoom : ''}`}>
+        <AnimatePresence mode="wait" custom={dir}>
+          <motion.div
+            key={step}
+            custom={dir}
+            variants={{
+              initial: (d) => ({ opacity: 0, y: d > 0 ? 20 : -20 }),
+              animate: { opacity: 1, y: 0 },
+              exit:    (d) => ({ opacity: 0, y: d > 0 ? -20 : 20 }),
+            }}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            transition={{ duration: 0.4, ease: 'easeOut' }}
+            className={styles.stepWrapper}
+          >
+            {/* Question header */}
+            <div className={styles.questionBlock}>
+              <motion.h1
+                className={styles.question}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.05 }}>
+                {STEP_QUESTIONS[currentStepKey]}
+              </motion.h1>
+              <motion.p
+                className={styles.subtitle}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1 }}>
+                {STEP_SUBTITLES[currentStepKey]}
+              </motion.p>
+            </div>
+
+            {/* Step content */}
+            {renderStep()}
+          </motion.div>
+        </AnimatePresence>
       </main>
 
-      {/* Footer con navegación */}
-      <footer className={styles.footer}>
-        {step > 0 && (
-          <button className={styles.backBtn} onClick={goBack}>← Atrás</button>
+      {/* Footer fijo con gradiente — solo cuando hay acción manual */}
+      <AnimatePresence>
+        {canContinue() && !['necesidad', 'fecha'].includes(currentStepKey) && (
+          <motion.div
+            key="footer"
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 16 }}
+            transition={{ duration: 0.2 }}
+            className={styles.footer}>
+            <button
+              className={styles.nextBtn}
+              onClick={goNext}>
+              {step === STEPS.length - 1 ? 'Ver resultados' : 'Continuar'}
+              <ArrowRight size={18} />
+            </button>
+          </motion.div>
         )}
-        <button
-          className={`${styles.nextBtn} ${!canContinue() ? styles.nextDisabled : ''}`}
-          disabled={!canContinue()}
-          onClick={goNext}>
-          {step === STEPS.length - 1 ? 'Ver resultados →' : 'Continuar →'}
-        </button>
-      </footer>
+      </AnimatePresence>
     </div>
   )
 }

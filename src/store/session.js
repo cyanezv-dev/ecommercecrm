@@ -42,6 +42,11 @@ export const useSessionStore = create(
       setCart: (data) => set(s => ({ cart: { ...s.cart, ...data } })),
       resetCart: () => set({ cart: { producto: null, taller: null, entrega: null, fecha: '', direccion: '' } }),
 
+      // ── Pago pendiente (datos del checkout antes de pagar) ──
+      pendingOrder: null,
+      setPendingOrder: (o) => set({ pendingOrder: o }),
+      clearPendingOrder: () => set({ pendingOrder: null }),
+
       // ── Confirmación ─────────────────────────────────
       confirmacion: null,
       setConfirmacion: (c) => set({ confirmacion: c }),
