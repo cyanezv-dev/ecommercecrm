@@ -297,9 +297,11 @@ export default function Results() {
     [setWizard, comunaFilterOptions],
   )
 
+  const errData = error?.response?.data
   const catalogMessage =
-    error?.response?.data?.message ||
-    error?.response?.data?.error ||
+    (typeof errData === 'object' && errData && errData.detail) ||
+    errData?.message ||
+    errData?.error ||
     error?.message
   const catalogStatus = error?.response?.status
   const catalogAttemptUrl = axiosRequestDisplayUrl(error)
