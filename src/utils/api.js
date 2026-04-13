@@ -452,6 +452,134 @@ export async function fetchProducts({ ancho, perfil, aro, search, limit = 60 }) 
   return attachEmptyDebug(n2, r2.config, r2.data)
 }
 
+/**
+ * Convierte una fila o primitivo del API en texto de medida (p. ej. "205/55R16").
+ */
+function medidaLabelFromMedidasRow(row) {
+  if (row == null) return ''
+  if (typeof row === 'string' || typeof row === 'number') {
+    const s = String(row).trim()
+    return s && s !== '—' ? s : ''
+  }
+  if (typeof row !== 'object') return ''
+  const o = row
+  const s = String(
+    o.medida ??
+      o.medida_texto ??
+      o.medidaTexto ??
+      o.size ??
+      o.tire_size ??
+      o.tireSize ??
+      o.label ??
+      o.nombre ??
+      o.name ??
+      o.value ??
+      o.glosa ??
+      o.text ??
+      o.codigo_medida ??
+      o.codigoMedida ??
+      '',
+  ).trim()
+  return s && s !== '—' ? s : ''
+}
+
+/**
+ * Algunos CRM devuelven medidas como mapa `{ "205/55R16": true, … }` en lugar de array.
+ */
+function medidasFromKeyedMap(node) {
+  if (!node || typeof node !== 'object' || Array.isArray(node)) return null
+  const keys = Object.keys(node)
+  if (!keys.length) return null
+  const looksLikeTireToken = (k) => {
+    const t = String(k).trim()
+    if (!t || t.length < 5) return false
+    return /^\d{2,3}\s*[\/-]/.test(t) || /\d{2}\s*[Rr]\s*\d{2}\b/.test(t)
+  }
+  const scored = keys.filter(looksLikeTireToken)
+  if (scored.length === 0) return null
+  return scored.map((k) => String(k).trim())
+}
+
+/**
+ * Unifica la respuesta de `GET /catalog/medidas` cuando el CRM no usa `{ medidas: [] }`:
+ * array plano, `{ data: [] }`, filas `{ medida: "…" }`, mapas con claves tipo medida, etc.
+ */
+export function normalizeCatalogMedidasPayload(payload) {
+  if (payload == null) return []
+  if (typeof payload === 'string') {
+    try {
+      return normalizeCatalogMedidasPayload(JSON.parse(payload))
+    } catch {
+      return []
+    }
+  }
+  if (Array.isArray(payload)) {
+    const out = []
+    for (const row of payload) {
+      const label = medidaLabelFromMedidasRow(row)
+      if (label) out.push(label)
+    }
+    return out
+  }
+  if (typeof payload !== 'object') return []
+
+  const p = payload
+  const tryArray = (node) => {
+    if (!Array.isArray(node)) return null
+    const out = []
+    for (const row of node) {
+      const label = medidaLabelFromMedidasRow(row)
+      if (label) out.push(label)
+    }
+    return out.length ? out : null
+  }
+
+  const direct =
+    tryArray(p.medidas) ||
+    tryArray(p.distinct_medidas) ||
+    tryArray(p.distinctMedidas) ||
+    tryArray(p.sizes) ||
+    tryArray(p.items) ||
+    tryArray(p.results) ||
+    tryArray(p.values) ||
+    tryArray(p.rows) ||
+    tryArray(p.records) ||
+    tryArray(p.list) ||
+    tryArray(p.content) ||
+    tryArray(p.payload) ||
+    tryArray(p.result)
+  if (direct) return direct
+
+  const fromMap =
+    medidasFromKeyedMap(p.medidas) ||
+    medidasFromKeyedMap(p.sizes) ||
+    medidasFromKeyedMap(p.distinct_medidas) ||
+    (p.data && typeof p.data === 'object' && !Array.isArray(p.data)
+      ? medidasFromKeyedMap(p.data.medidas) || medidasFromKeyedMap(p.data.sizes)
+      : null)
+  if (fromMap) return fromMap
+
+  if (p.data != null) {
+    if (Array.isArray(p.data)) {
+      const fromData = tryArray(p.data)
+      if (fromData) return fromData
+    } else if (typeof p.data === 'object') {
+      const nested = p.data
+      const fromNested =
+        tryArray(nested.medidas) ||
+        tryArray(nested.distinct_medidas) ||
+        tryArray(nested.items) ||
+        tryArray(nested.results) ||
+        tryArray(nested.sizes) ||
+        tryArray(nested.list) ||
+        tryArray(nested.records)
+      if (fromNested) return fromNested
+    }
+  }
+
+  return []
+}
+
 /** Lista de medidas distintas del catálogo (para filtro / autocomplete en resultados). */
 export async function fetchCatalogMedidas({ q = '', limit = 300 } = {}) {
   const sp = new URLSearchParams()
@@ -461,7 +589,8 @@ export async function fetchCatalogMedidas({ q = '', limit = 300 } = {}) {
   const d = await http
     .get(`/catalog/medidas?${sp.toString()}`, { timeout: CATALOG_HTTP_TIMEOUT_MS })
     .then((r) => r.data)
-  return { medidas: Array.isArray(d?.medidas) ? d.medidas : [] }
+  const medidas = normalizeCatalogMedidasPayload(d)
+  return { medidas }
 }
 
 /** Talleres disponibles para instalación */
