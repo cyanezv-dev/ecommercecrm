@@ -149,12 +149,20 @@ export function apiBaseLooksSameOriginAsStorefront() {
 
 const API_BASE = resolveApiBase()
 
-/** Catálogo y medidas pueden tardar más que el default (consultas / joins). */
-const CATALOG_HTTP_TIMEOUT_MS = 60000
+/**
+ * Timeout por defecto de todas las llamadas al API.
+ * El catálogo en producción puede superar fácilmente 15s (consultas / DB); si el
+ * default fuera 15000, el usuario ve "timeout of 15000ms" aunque el servidor
+ * termine respondiendo poco después.
+ */
+const HTTP_TIMEOUT_MS = 60000
+
+/** Catálogo y medidas: mismo techo que el cliente (consultas pesadas). */
+const CATALOG_HTTP_TIMEOUT_MS = HTTP_TIMEOUT_MS
 
 export const http = axios.create({
   baseURL: API_BASE,
-  timeout: 15000,
+  timeout: HTTP_TIMEOUT_MS,
 })
 
 http.interceptors.request.use((config) => {
