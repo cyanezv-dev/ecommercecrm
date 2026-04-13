@@ -18,10 +18,28 @@
       Opción C — archivo api-config.json en la raíz del sitio con {"apiBaseUrl":"https://…/api"}
     -->
     <script>
-      (function () {
+      ;(function () {
         if (typeof window === 'undefined') return
         var LEADFLOW_API = ''
-        if (LEADFLOW_API) window.__ECOMM_API_BASE__ = String(LEADFLOW_API).trim().replace(/\/$/, '')
+        if (!LEADFLOW_API) return
+        var raw = String(LEADFLOW_API).trim().replace(/\/+$/, '')
+        try {
+          var u = new URL(raw)
+          if (u.protocol !== 'http:' && u.protocol !== 'https:') {
+            window.__ECOMM_API_BASE__ = raw
+            return
+          }
+          var path = (u.pathname || '/').replace(/\/+$/, '') || ''
+          if (path === '/catalog' || /\/catalog$/i.test(path)) {
+            path = path.replace(/\/catalog$/i, '') || ''
+            path = path.replace(/\/+$/, '') || ''
+          }
+          if (path === '' || path === '/') u.pathname = '/api'
+          else u.pathname = path.charAt(0) === '/' ? path : '/' + path
+          window.__ECOMM_API_BASE__ = u.toString().replace(/\/+$/, '')
+        } catch (e) {
+          window.__ECOMM_API_BASE__ = raw
+        }
       })()
     </script>
     <div id="root"></div>

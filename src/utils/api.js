@@ -30,6 +30,16 @@ function looksLikePlaceholderApiUrl(v) {
 
 let warnedPlaceholderApiUrl = false
 
+/**
+ * Normaliza la base del API Leadflow (axios `baseURL`).
+ *
+ * Si la base es solo el origen (`https://host`) sin path, axios resuelve
+ * `GET /catalog` como `https://host/catalog` (Express: «Cannot GET /catalog»).
+ * La base correcta termina en `/api` para que la petición sea `…/api/catalog`.
+ *
+ * También corrige el error típico de pegar la URL del listado (`…/catalog`)
+ * como si fuera la base del API.
+ */
 export function normalizeLeadflowApiBase(input) {
   const s = String(input || '').trim()
   if (!s) return ''
@@ -40,9 +50,15 @@ export function normalizeLeadflowApiBase(input) {
   try {
     const u = new URL(s)
     if (u.protocol !== 'http:' && u.protocol !== 'https:') return s.replace(/\/$/, '')
-    const path = (u.pathname || '/').replace(/\/+$/, '') || ''
+    let path = (u.pathname || '/').replace(/\/+$/, '') || ''
+    if (path === '/catalog' || path.endsWith('/catalog')) {
+      path = path.replace(/\/catalog$/u, '') || ''
+      path = path.replace(/\/+$/, '') || ''
+    }
     if (path === '' || path === '/') {
       u.pathname = '/api'
+    } else {
+      u.pathname = path.startsWith('/') ? path : `/${path}`
     }
     return u.toString().replace(/\/$/, '')
   } catch {
@@ -167,7 +183,9 @@ export const http = axios.create({
 
 http.interceptors.request.use((config) => {
   const b = getApiBase()
-  if (b) config.baseURL = b
+  if (b) {
+    config.baseURL = normalizeLeadflowApiBase(b) || b.replace(/\/$/, '')
+  }
   return config
 })
 
