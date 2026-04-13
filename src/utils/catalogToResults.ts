@@ -103,37 +103,12 @@ export function mapCatalogProductToTire(product: unknown): Tire {
   if (tierRaw === 'Premium') category = 'premium'
   else if (tierRaw === 'Conveniencia') category = 'conveniencia'
 
-  const availability = asRecord(p.availability)
-  const fuente = asRecord(availability.fuente_optima)
-  const horas = Number(
-    fuente.tiempo_entrega_horas ?? p.tiempoEntregaHoras ?? 24,
-  )
-
   let badge: string | undefined
   if (rawOffer > 0 && rawNormal > 0 && rawOffer < rawNormal) {
     badge = `-${Math.round((1 - rawOffer / rawNormal) * 100)}%`
   }
 
   const catalogBadges = catalogBadgesFromCustomFields(cf)
-
-  const features: string[] = []
-  if (horas <= 48) features.push(`~${Math.round(horas)} h entrega`)
-  else features.push('Bajo pedido')
-  if (!catalogBadges.some((b) => b.variant === 'runflat')) {
-    const rf = cf.runflat ?? cf.Runflat ?? cf.RunFlat
-    const rfStr = typeof rf === 'string' ? rf.trim().toLowerCase() : ''
-    const runflatText =
-      rf === true ||
-      rf === 'true' ||
-      (typeof rf === 'string' &&
-        rfStr &&
-        rfStr !== 'false' &&
-        rfStr !== 'no' &&
-        rfStr !== '0' &&
-        rfStr !== '—')
-    if (runflatText) features.push('RunFlat')
-  }
-  if (features.length < 2) features.push('Catálogo verificado')
 
   const img = String(p.photo_url ?? p.foto ?? p.image_url ?? p.imagen ?? '').trim()
 
@@ -151,7 +126,6 @@ export function mapCatalogProductToTire(product: unknown): Tire {
     rating: 4.5,
     reviews: 0,
     size: medida || '—',
-    features: features.slice(0, 3),
     catalogBadges: catalogBadges.length ? catalogBadges : undefined,
     category,
     crmProduct: p,

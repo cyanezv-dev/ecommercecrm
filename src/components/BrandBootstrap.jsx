@@ -11,7 +11,7 @@ function applyFaviconHref(href, faviconUrl) {
   else link.type = 'image/png'
 }
 
-/** Carga `/api/site-brand` una vez al abrir la app y aplica favicon desde la API o datos de empresa. */
+/** Refuerza carga de `/api/site-brand` (ya se precarga en `main.jsx`) y aplica favicon. */
 export default function BrandBootstrap() {
   const hydrate = useBrandStore((s) => s.hydrate)
   const faviconUrl = useBrandStore((s) => s.faviconUrl)

@@ -15,12 +15,20 @@ export const useBrandStore = create((set, get) => ({
     if (get().loaded && !force) return
     try {
       const d = await api.get('/site-brand')
+      const logoRaw = d?.logoUrl ?? d?.logo_url ?? d?.company_logo_url
+      const nameRaw = d?.name ?? d?.company_name
+      const favRaw = d?.faviconUrl ?? d?.favicon_url ?? d?.company_favicon_url
+      const legalRaw = d?.legalName ?? d?.legal_name ?? d?.company_legal_name
       set({
-        name: (d && d.name) ? String(d.name).trim() : BRAND_DEFAULTS.name,
-        logoUrl: d && d.logoUrl && String(d.logoUrl).trim() ? String(d.logoUrl).trim() : null,
+        name: nameRaw != null && String(nameRaw).trim() ? String(nameRaw).trim() : BRAND_DEFAULTS.name,
+        logoUrl:
+          logoRaw != null && String(logoRaw).trim() ? String(logoRaw).trim() : null,
         faviconUrl:
-          d && d.faviconUrl && String(d.faviconUrl).trim() ? String(d.faviconUrl).trim() : null,
-        legalName: (d && d.legalName) ? String(d.legalName).trim() : BRAND_DEFAULTS.legalName,
+          favRaw != null && String(favRaw).trim() ? String(favRaw).trim() : null,
+        legalName:
+          legalRaw != null && String(legalRaw).trim()
+            ? String(legalRaw).trim()
+            : BRAND_DEFAULTS.legalName,
         loaded: true,
         error: null,
       })

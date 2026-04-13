@@ -22,7 +22,6 @@ export interface Tire {
   rating: number
   reviews: number
   size: string
-  features: string[]
   /** Homologación OEM / EXT / RunFlat desde `custom_fields` del catálogo (misma idea que el panel CRM). */
   catalogBadges?: { label: string; variant: CatalogBadgeVariant }[]
   category: "premium" | "conveniencia" | "economico"
@@ -486,24 +485,21 @@ function TireCard({ tire, quantity, deliveryType, deliveryLabel, onSelect }: Tir
           </p>
           <p className="text-xs text-muted-foreground mb-3">Medida: {tire.size}</p>
           
-          <div className="flex flex-wrap gap-1.5 min-h-[28px] items-center">
-            {(tire.catalogBadges ?? []).map((b) => (
-              <span
-                key={`${b.variant}-${b.label}`}
-                className={cn(
-                  "px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide rounded font-mono leading-none",
-                  catalogBadgeClass(b.variant),
-                )}
-              >
-                {b.label}
-              </span>
-            ))}
-            {tire.features.slice(0, 2).map((feature, i) => (
-              <span key={i} className="px-2 py-0.5 bg-muted text-xs text-muted-foreground rounded h-fit">
-                {feature}
-              </span>
-            ))}
-          </div>
+          {tire.catalogBadges && tire.catalogBadges.length > 0 ? (
+            <div className="flex flex-wrap gap-1.5 items-center">
+              {tire.catalogBadges.map((b) => (
+                <span
+                  key={`${b.variant}-${b.label}`}
+                  className={cn(
+                    "px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide rounded font-mono leading-none",
+                    catalogBadgeClass(b.variant),
+                  )}
+                >
+                  {b.label}
+                </span>
+              ))}
+            </div>
+          ) : null}
         </div>
         
         <div className="border-t border-border pt-3 mb-3 space-y-1.5">
