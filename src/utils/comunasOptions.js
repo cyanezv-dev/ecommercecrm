@@ -1,4 +1,4 @@
-import { COMUNAS_CL, searchComunas } from './comunas'
+import { COMUNAS_CL, rankComunasForQuery, searchComunas } from './comunas'
 
 function norm(s) {
   return String(s || '')
@@ -44,9 +44,19 @@ export function buildComunaFilterOptions(wizard) {
   return [{ id: '', label: 'Tu zona' }]
 }
 
+function wizardHomeRegion(wizard) {
+  const codigo = String(wizard.comuna || '').trim()
+  const nombre = String(wizard.comunaNombre || '').trim()
+  const m =
+    (codigo && COMUNAS_CL.find((c) => c.codigo === codigo)) ||
+    (nombre.length >= 2 ? searchComunas(nombre, 1)[0] : null)
+  return m?.region || ''
+}
+
 /**
  * Lista para autocomplete: sin búsqueda, comunas de la región (la del wizard primero);
- * con texto, coincidencias de esa región primero y luego todas las del país que calzan.
+ * con texto, orden global por qué tan bien calza lo escrito (la mejor coincidencia arriba);
+ * desempate leve: misma región que el wizard.
  */
 export function comunasAutocompleteOptions(wizard, query) {
   const nearby = buildComunaFilterOptions(wizard)
@@ -61,24 +71,16 @@ export function comunasAutocompleteOptions(wizard, query) {
     return filtered.length ? filtered : nearby
   }
 
-  const seen = new Set()
-  const out = []
+  const home = wizardHomeRegion(wizard)
+  const ranked = rankComunasForQuery(q, 500)
+  ranked.sort((a, b) => {
+    if (a.score !== b.score) return a.score - b.score
+    if (a.normLen !== b.normLen) return a.normLen - b.normLen
+    const ah = a.region === home ? 1 : 0
+    const bh = b.region === home ? 1 : 0
+    if (ah !== bh) return bh - ah
+    return a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' })
+  })
 
-  const matchesRow = (o) =>
-    !!o.id &&
-    (norm(o.label).includes(nq) || norm(String(o.id)).includes(nq))
-
-  for (const o of nearby) {
-    if (!matchesRow(o) || seen.has(o.id)) continue
-    seen.add(o.id)
-    out.push(o)
-  }
-
-  for (const c of searchComunas(q, 500)) {
-    const id = String(c.codigo)
-    if (seen.has(id)) continue
-    seen.add(id)
-    out.push({ id, label: c.nombre })
-  }
-  return out
+  return ranked.map((c) => ({ id: String(c.codigo), label: c.nombre }))
 }

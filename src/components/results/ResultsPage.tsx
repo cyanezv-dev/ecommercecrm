@@ -303,16 +303,28 @@ function ComunaAutocompleteFilter({ comunaWizard, value, onChange }: ComunaAutoc
                     type="search"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key !== "Enter") return
+                      const first = rows.find((o) => o.id)
+                      if (!first?.id) return
+                      e.preventDefault()
+                      onChange(first.id)
+                      setIsOpen(false)
+                    }}
                     placeholder="Buscar comuna…"
                     className="w-full pl-9 pr-3 py-2.5 text-sm rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
                     autoFocus
                   />
                 </div>
-                {!searchQuery.trim() && (
+                {!searchQuery.trim() ? (
                   <p className="px-2 pt-2 text-[11px] text-muted-foreground">
                     Comunas de tu región; escribe al menos 2 letras para buscar en todo Chile
                   </p>
-                )}
+                ) : searchQuery.trim().length >= 2 && rows.length > 0 ? (
+                  <p className="px-2 pt-2 text-[11px] text-muted-foreground">
+                    La mejor coincidencia va primero — pulsa Enter para elegir la primera
+                  </p>
+                ) : null}
               </div>
               <div className="overflow-y-auto py-1 min-h-0">
                 {rows.length === 0 ? (

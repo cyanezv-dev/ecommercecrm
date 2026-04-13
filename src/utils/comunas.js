@@ -311,25 +311,26 @@ export const COMUNAS_CL = [
   { codigo: '16305', nombre: 'San Nicolás',         region: 'Ñuble' },
 ]
 
+function normComunaTxt(s) {
+  return String(s || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+}
+
 /**
- * Busca comunas localmente — normaliza tildes y mayúsculas.
- * Orden: nombre exacto → prefijo nombre → incluye nombre → región → código.
- * `limit` alto (p. ej. 400) devuelve prácticamente todo Chile que coincida.
+ * Coincidencias con puntuación y orden listo para autocomplete.
+ * Orden: calidad de match → nombre más corto (más específico) → alfabético.
  */
-export function searchComunas(q, limit = 80) {
-  const norm = (s) =>
-    String(s || '')
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .toLowerCase()
-  const query = norm(q.trim())
+export function rankComunasForQuery(q, limit = 500) {
+  const query = normComunaTxt(q.trim())
   if (query.length < 2) return []
 
   const scored = []
   for (const c of COMUNAS_CL) {
-    const nn = norm(c.nombre)
-    const nr = norm(c.region)
-    const nc = norm(String(c.codigo))
+    const nn = normComunaTxt(c.nombre)
+    const nr = normComunaTxt(c.region)
+    const nc = normComunaTxt(String(c.codigo))
     let score = 99
     if (nn === query) score = 0
     else if (nn.startsWith(query)) score = 1
@@ -337,16 +338,36 @@ export function searchComunas(q, limit = 80) {
     else if (nr.includes(query)) score = 3
     else if (nc.includes(query)) score = 4
     else continue
-    scored.push({ c, score, nn })
+    scored.push({
+      codigo: c.codigo,
+      nombre: c.nombre,
+      region: c.region,
+      score,
+      normLen: nn.length,
+    })
   }
 
   scored.sort((a, b) => {
     if (a.score !== b.score) return a.score - b.score
-    return a.nn.localeCompare(b.nn, 'es', { sensitivity: 'base' })
+    if (a.normLen !== b.normLen) return a.normLen - b.normLen
+    return a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' })
   })
 
-  const lim = Math.min(Math.max(Number(limit) || 80, 1), 500)
-  return scored.slice(0, lim).map((x) => x.c)
+  const lim = Math.min(Math.max(Number(limit) || 500, 1), 500)
+  return scored.slice(0, lim)
+}
+
+/**
+ * Busca comunas localmente — normaliza tildes y mayúsculas.
+ * Orden: nombre exacto → prefijo nombre → incluye nombre → región → código.
+ * `limit` alto (p. ej. 400) devuelve prácticamente todo Chile que coincida.
+ */
+export function searchComunas(q, limit = 80) {
+  return rankComunasForQuery(q, limit).map(({ codigo, nombre, region }) => ({
+    codigo,
+    nombre,
+    region,
+  }))
 }
 
 /**
