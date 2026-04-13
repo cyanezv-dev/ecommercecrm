@@ -1667,13 +1667,13 @@ export function ResultsPage({
       </section>
 
       {/* Filters section */}
-      <section className="py-5 px-6 border-b border-border bg-muted/30 sticky top-[73px] z-40 backdrop-blur-sm">
+      <section className="py-5 px-6 border-b border-red-800 bg-red-600 sticky top-[73px] z-40 backdrop-blur-sm shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]">
         <div className="max-w-7xl mx-auto">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Tus filtros</h2>
+            <h2 className="text-sm font-medium text-white/95 uppercase tracking-wide">Tus filtros</h2>
             <button 
               onClick={onStartOver}
-              className="text-sm text-accent hover:text-accent/80 transition-colors flex items-center gap-1"
+              className="text-sm text-white hover:text-red-100 transition-colors flex items-center gap-1"
             >
               <RotateCcw className="w-4 h-4" />
               Reiniciar
