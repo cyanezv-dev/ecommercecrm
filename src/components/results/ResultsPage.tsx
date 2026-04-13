@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { useBrandStore } from "@/store/brand"
 import { comunasAutocompleteOptions } from "@/utils/comunasOptions"
+export type CatalogBadgeVariant = "ext" | "oem" | "runflat"
 
 export interface Tire {
   id: string
@@ -22,6 +23,8 @@ export interface Tire {
   reviews: number
   size: string
   features: string[]
+  /** Homologación OEM / EXT / RunFlat desde `custom_fields` del catálogo (misma idea que el panel CRM). */
+  catalogBadges?: { label: string; variant: CatalogBadgeVariant }[]
   category: "premium" | "conveniencia" | "economico"
   /** Producto original del catálogo / CRM (no mostrar en UI) */
   crmProduct?: Record<string, unknown>
@@ -442,6 +445,12 @@ function tireFamiliaModeloLine(tire: Tire) {
   return short || tire.size || '—'
 }
 
+function catalogBadgeClass(variant: CatalogBadgeVariant) {
+  if (variant === "ext") return "bg-emerald-600 text-white"
+  if (variant === "runflat") return "bg-emerald-700 text-white"
+  return "bg-[#1e3a5f] text-white"
+}
+
 function TireCard({ tire, quantity, deliveryType, deliveryLabel, onSelect }: TireCardProps) {
   const subtotal = tire.price * quantity
   
@@ -477,7 +486,18 @@ function TireCard({ tire, quantity, deliveryType, deliveryLabel, onSelect }: Tir
           </p>
           <p className="text-xs text-muted-foreground mb-3">Medida: {tire.size}</p>
           
-          <div className="flex flex-wrap gap-1.5 min-h-[28px]">
+          <div className="flex flex-wrap gap-1.5 min-h-[28px] items-center">
+            {(tire.catalogBadges ?? []).map((b) => (
+              <span
+                key={`${b.variant}-${b.label}`}
+                className={cn(
+                  "px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide rounded font-mono leading-none",
+                  catalogBadgeClass(b.variant),
+                )}
+              >
+                {b.label}
+              </span>
+            ))}
             {tire.features.slice(0, 2).map((feature, i) => (
               <span key={i} className="px-2 py-0.5 bg-muted text-xs text-muted-foreground rounded h-fit">
                 {feature}

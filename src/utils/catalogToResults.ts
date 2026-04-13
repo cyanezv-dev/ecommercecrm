@@ -1,4 +1,4 @@
-import type { Tire, Workshop } from '@/components/results/ResultsPage'
+import type { Tire, Workshop, CatalogBadgeVariant } from '@/components/results/ResultsPage'
 import { listPriceWithIva, unitPriceWithIva } from '@/utils/format'
 
 function asRecord(v: unknown): Record<string, unknown> {
@@ -27,6 +27,47 @@ function customFieldsRecord(raw: unknown): Record<string, unknown> {
     }
   }
   return {}
+}
+
+/** Misma lógica que el listado del CRM: homologación OEM (EXT verde, resto azul) + RunFlat. */
+export function catalogBadgesFromCustomFields(cf: Record<string, unknown>): {
+  label: string
+  variant: CatalogBadgeVariant
+}[] {
+  const out: { label: string; variant: CatalogBadgeVariant }[] = []
+  const hom = String(
+    cf.homologacion_oem ?? cf.Homologacion_oem ?? cf.homologacion_OEM ?? '',
+  ).trim()
+  if (hom) {
+    for (const raw of hom.split(',')) {
+      const code = raw.trim().toUpperCase()
+      if (!code) continue
+      const variant: CatalogBadgeVariant = code === 'EXT' ? 'ext' : 'oem'
+      out.push({ label: code, variant })
+    }
+  }
+  const rf = cf.runflat ?? cf.Runflat ?? cf.RunFlat
+  const rfStr = typeof rf === 'string' ? rf.trim().toLowerCase() : ''
+  const runflatOn =
+    rf === true ||
+    rf === 'true' ||
+    rf === 1 ||
+    (typeof rf === 'string' &&
+      rfStr.length > 0 &&
+      rfStr !== 'false' &&
+      rfStr !== 'no' &&
+      rfStr !== '0' &&
+      rfStr !== '—')
+  if (runflatOn) {
+    const lbl =
+      typeof rf === 'string' &&
+      rfStr &&
+      !['true', 'si', 'sí', 'yes', '1', 'runflat'].includes(rfStr)
+        ? String(rf).trim().toUpperCase()
+        : 'RunFlat'
+    out.push({ label: lbl.slice(0, 16), variant: 'runflat' })
+  }
+  return out
 }
 
 export function mapCatalogProductToTire(product: unknown): Tire {
@@ -73,10 +114,25 @@ export function mapCatalogProductToTire(product: unknown): Tire {
     badge = `-${Math.round((1 - rawOffer / rawNormal) * 100)}%`
   }
 
+  const catalogBadges = catalogBadgesFromCustomFields(cf)
+
   const features: string[] = []
   if (horas <= 48) features.push(`~${Math.round(horas)} h entrega`)
   else features.push('Bajo pedido')
-  if (cf.runflat) features.push('RunFlat')
+  if (!catalogBadges.some((b) => b.variant === 'runflat')) {
+    const rf = cf.runflat ?? cf.Runflat ?? cf.RunFlat
+    const rfStr = typeof rf === 'string' ? rf.trim().toLowerCase() : ''
+    const runflatText =
+      rf === true ||
+      rf === 'true' ||
+      (typeof rf === 'string' &&
+        rfStr &&
+        rfStr !== 'false' &&
+        rfStr !== 'no' &&
+        rfStr !== '0' &&
+        rfStr !== '—')
+    if (runflatText) features.push('RunFlat')
+  }
   if (features.length < 2) features.push('Catálogo verificado')
 
   const img = String(p.photo_url ?? p.foto ?? p.image_url ?? p.imagen ?? '').trim()
@@ -96,6 +152,7 @@ export function mapCatalogProductToTire(product: unknown): Tire {
     reviews: 0,
     size: medida || '—',
     features: features.slice(0, 3),
+    catalogBadges: catalogBadges.length ? catalogBadges : undefined,
     category,
     crmProduct: p,
   }
