@@ -741,10 +741,10 @@ export const fetchComunas = (q) => {
   const trimmed = (q || '').trim()
   if (trimmed.length < 2) return Promise.resolve([])
 
-  const local = searchComunas(trimmed, 12)
+  const local = searchComunas(trimmed, 60)
 
   return api
-    .get(`/comunas?search=${encodeURIComponent(trimmed)}&limit=20`)
+    .get(`/comunas?search=${encodeURIComponent(trimmed)}&limit=80`)
     .then((data) => {
       const arr = Array.isArray(data) ? data : []
       const remote = arr.map(normalizeComunaRow).filter(Boolean)
@@ -759,7 +759,7 @@ export const fetchComunas = (q) => {
           merged.push(r)
         }
       }
-      return merged.slice(0, 12)
+      return merged.slice(0, 80)
     })
     .catch(() => local)
 }

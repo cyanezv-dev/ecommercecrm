@@ -46,7 +46,7 @@ export function buildComunaFilterOptions(wizard) {
 
 /**
  * Lista para autocomplete: sin búsqueda, comunas de la región (la del wizard primero);
- * con texto, prioriza coincidencias en esa lista y agrega resultados del país.
+ * con texto, coincidencias de esa región primero y luego todas las del país que calzan.
  */
 export function comunasAutocompleteOptions(wizard, query) {
   const nearby = buildComunaFilterOptions(wizard)
@@ -64,22 +64,21 @@ export function comunasAutocompleteOptions(wizard, query) {
   const seen = new Set()
   const out = []
 
+  const matchesRow = (o) =>
+    !!o.id &&
+    (norm(o.label).includes(nq) || norm(String(o.id)).includes(nq))
+
   for (const o of nearby) {
-    if (!o.id || seen.has(o.id)) continue
-    if (norm(o.label).includes(nq)) {
-      seen.add(o.id)
-      out.push(o)
-    }
-  }
-  for (const o of nearby) {
-    if (!o.id || seen.has(o.id)) continue
+    if (!matchesRow(o) || seen.has(o.id)) continue
     seen.add(o.id)
     out.push(o)
   }
-  for (const c of searchComunas(q, 40)) {
-    if (seen.has(c.codigo)) continue
-    seen.add(c.codigo)
-    out.push({ id: c.codigo, label: c.nombre })
+
+  for (const c of searchComunas(q, 500)) {
+    const id = String(c.codigo)
+    if (seen.has(id)) continue
+    seen.add(id)
+    out.push({ id, label: c.nombre })
   }
   return out
 }

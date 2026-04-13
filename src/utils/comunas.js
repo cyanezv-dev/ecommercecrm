@@ -313,14 +313,40 @@ export const COMUNAS_CL = [
 
 /**
  * Busca comunas localmente — normaliza tildes y mayúsculas.
+ * Orden: nombre exacto → prefijo nombre → incluye nombre → región → código.
+ * `limit` alto (p. ej. 400) devuelve prácticamente todo Chile que coincida.
  */
-export function searchComunas(q, limit = 8) {
-  const norm = (s) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+export function searchComunas(q, limit = 80) {
+  const norm = (s) =>
+    String(s || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
   const query = norm(q.trim())
   if (query.length < 2) return []
-  return COMUNAS_CL
-    .filter(c => norm(c.nombre).includes(query) || norm(c.region).includes(query))
-    .slice(0, limit)
+
+  const scored = []
+  for (const c of COMUNAS_CL) {
+    const nn = norm(c.nombre)
+    const nr = norm(c.region)
+    const nc = norm(String(c.codigo))
+    let score = 99
+    if (nn === query) score = 0
+    else if (nn.startsWith(query)) score = 1
+    else if (nn.includes(query)) score = 2
+    else if (nr.includes(query)) score = 3
+    else if (nc.includes(query)) score = 4
+    else continue
+    scored.push({ c, score, nn })
+  }
+
+  scored.sort((a, b) => {
+    if (a.score !== b.score) return a.score - b.score
+    return a.nn.localeCompare(b.nn, 'es', { sensitivity: 'base' })
+  })
+
+  const lim = Math.min(Math.max(Number(limit) || 80, 1), 500)
+  return scored.slice(0, lim).map((x) => x.c)
 }
 
 /**

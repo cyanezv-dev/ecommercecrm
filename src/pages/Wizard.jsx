@@ -104,7 +104,7 @@ export default function Wizard() {
             setComunaList(safe)
           }
         })
-        .catch(() => setComunaList(searchComunas(q, 8)))
+        .catch(() => setComunaList(searchComunas(q, 60)))
     }, 300)
     return () => clearTimeout(timer)
   }, [comunaInput, setWizard])

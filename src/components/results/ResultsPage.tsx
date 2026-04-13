@@ -309,7 +309,9 @@ function ComunaAutocompleteFilter({ comunaWizard, value, onChange }: ComunaAutoc
                   />
                 </div>
                 {!searchQuery.trim() && (
-                  <p className="px-2 pt-2 text-[11px] text-muted-foreground">Primero tu región; escribe para ver todo Chile</p>
+                  <p className="px-2 pt-2 text-[11px] text-muted-foreground">
+                    Comunas de tu región; escribe al menos 2 letras para buscar en todo Chile
+                  </p>
                 )}
               </div>
               <div className="overflow-y-auto py-1 min-h-0">
