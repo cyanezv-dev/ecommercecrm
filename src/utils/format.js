@@ -67,6 +67,19 @@ export function parseMedida(medida) {
   return { ancho: '', perfil: '', aro: '', raw: m }
 }
 
+/**
+ * Id estable para el filtro de medida: misma medida nominal → mismo id aunque el
+ * texto varíe (205/55R16 vs 205/55 R16 vs 205-55-R-16). Evita que el filtro se
+ * “salte” a otra opción al recargar opciones desde el catálogo.
+ */
+export function canonicalMedidaFilterId(label) {
+  const p = parseMedida(String(label ?? '').trim())
+  if (p.ancho && p.perfil && p.aro) return `${p.ancho}-${p.perfil}-${p.aro}`
+  const s = String(label ?? '').trim()
+  if (!s) return ''
+  return s.replace(/\s+/g, '-').replace(/\//g, '-').replace(/_/g, '-')
+}
+
 /** Convierte fecha "hoy" / "mañana" / "esta semana" a ISO */
 export function fechaToISO(valor) {
   const d = new Date()

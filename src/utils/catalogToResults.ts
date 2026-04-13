@@ -1,5 +1,5 @@
 import type { Tire, Workshop, CatalogBadgeVariant } from '@/components/results/ResultsPage'
-import { listPriceWithIva, unitPriceWithIva } from '@/utils/format'
+import { canonicalMedidaFilterId, listPriceWithIva, unitPriceWithIva } from '@/utils/format'
 
 function asRecord(v: unknown): Record<string, unknown> {
   return v && typeof v === 'object' ? (v as Record<string, unknown>) : {}
@@ -173,6 +173,6 @@ export function medidaFilterFromWizard(wizard: {
     (wizard.ancho && wizard.perfil && wizard.aro
       ? `${wizard.ancho}/${wizard.perfil}R${wizard.aro}`
       : 'Medida')
-  const id = label.replace(/\s+/g, '-').replace(/\//g, '-')
+  const id = canonicalMedidaFilterId(label) || label.replace(/\s+/g, '-').replace(/\//g, '-')
   return { id, label }
 }

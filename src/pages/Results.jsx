@@ -1,4 +1,4 @@
-import { useMemo, useCallback } from 'react'
+import { useMemo, useCallback, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { useSessionStore } from '@/store/session'
@@ -10,7 +10,7 @@ import {
   apiBaseLooksSameOriginAsStorefront,
   getResolvedApiBase,
 } from '@/utils/api'
-import { parseMedida } from '@/utils/format'
+import { canonicalMedidaFilterId, parseMedida } from '@/utils/format'
 import { Button } from '@/components/ui/button'
 import { ResultsPage } from '@/components/results/ResultsPage'
 import { COMUNAS_CL } from '@/utils/comunas'
@@ -38,6 +38,23 @@ function labelToMedidaKey(label) {
   return ''
 }
 
+/** Invierte el `id` del filtro (canónico ancho-perfil-aro o slug) a etiqueta tipo 205/55R16. */
+function medidaLabelFromFilterId(id) {
+  const s = String(id || '').trim()
+  if (!s) return ''
+  const tryParse = (label) => {
+    const p = parseMedida(label)
+    if (p.ancho && p.perfil && p.aro) return `${p.ancho}/${p.perfil}R${p.aro}`
+    return ''
+  }
+  // Id canónico: 205-55-16 → 205/55/16 (parseMedida lo acepta)
+  const fromSlash = tryParse(s.replace(/-/g, '/'))
+  if (fromSlash) return fromSlash
+  const fromR = tryParse(s.replace(/^(\d{2,3})-(\d{2})(R)(\d{2})$/i, '$1/$2R$4'))
+  if (fromR) return fromR
+  return ''
+}
+
 /** Medida del wizard + medidas distintas que vienen en la respuesta del catálogo. */
 function buildSizeFilterOptions(wizard, tires) {
   const current = medidaFilterFromWizard(wizard)
@@ -47,7 +64,7 @@ function buildSizeFilterOptions(wizard, tires) {
     const label = (t.size || '').trim()
     if (!label || label === '—') continue
     const row = {
-      id: label.replace(/\s+/g, '-').replace(/\//g, '-'),
+      id: canonicalMedidaFilterId(label) || label.replace(/\s+/g, '-').replace(/\//g, '-'),
       label,
     }
     if (seen.has(row.id)) continue
@@ -78,7 +95,7 @@ function mergeCatalogMedidasIntoSizeOptions(wizard, tires, catalogMedidas) {
     const l = String(label || '').trim()
     if (!l || l === '—') continue
     const row = {
-      id: l.replace(/\s+/g, '-').replace(/\//g, '-'),
+      id: canonicalMedidaFilterId(l) || l.replace(/\s+/g, '-').replace(/\//g, '-'),
       label: l,
     }
     if (seen.has(row.id)) continue
@@ -219,6 +236,11 @@ export default function Results() {
     sizeFilterOptions,
   ])
 
+  const sizeFilterOptionsRef = useRef(sizeFilterOptions)
+  useEffect(() => {
+    sizeFilterOptionsRef.current = sizeFilterOptions
+  }, [sizeFilterOptions])
+
   const syncFiltersToWizard = useCallback(
     (f) => {
       const necesidad = v0DeliveryToWizardNecesidad(f.delivery)
@@ -229,8 +251,10 @@ export default function Results() {
         nextNombre =
           COMUNAS_CL.find((c) => c.codigo === nextComuna)?.nombre || ''
       }
-      const sizeOpt = sizeFilterOptions.find((s) => s.id === f.size)
-      const nextMedidaLabel = String(sizeOpt?.label || '').trim()
+      const opts = sizeFilterOptionsRef.current
+      const sizeOpt = opts.find((s) => s.id === f.size)
+      let nextMedidaLabel = String(sizeOpt?.label || '').trim()
+      if (!nextMedidaLabel) nextMedidaLabel = medidaLabelFromFilterId(f.size)
       const parsed = nextMedidaLabel ? parseMedida(nextMedidaLabel) : null
 
       const w = useSessionStore.getState().wizard
@@ -239,15 +263,18 @@ export default function Results() {
           ? !String(w.comuna || '').trim()
           : String(w.comuna || '').trim() === nextComuna &&
             String(w.comunaNombre || '').trim() === nextNombre
-      const medidaIgual =
-        !nextMedidaLabel ||
-        medidaTripletKey(w) === labelToMedidaKey(nextMedidaLabel)
+
+      const wizardSizeId = medidaFilterFromWizard(w).id
+      const sizeIdChanged = String(f.size || '') !== String(wizardSizeId)
+      const tripletMatch =
+        !!nextMedidaLabel && medidaTripletKey(w) === labelToMedidaKey(nextMedidaLabel)
 
       if (
         w.cantidad === f.quantity &&
         w.necesidad === necesidad &&
         comunaIgual &&
-        medidaIgual
+        !sizeIdChanged &&
+        (!nextMedidaLabel || tripletMatch)
       ) {
         return
       }
@@ -267,7 +294,7 @@ export default function Results() {
       }
       setWizard(patch)
     },
-    [setWizard, comunaFilterOptions, sizeFilterOptions],
+    [setWizard, comunaFilterOptions],
   )
 
   const catalogMessage =
