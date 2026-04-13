@@ -9,6 +9,9 @@ import { useBrandStore } from "@/store/brand"
 export interface Tire {
   id: string
   name: string
+  /** Línea bajo la marca (catálogo CRM: familia / modelo). */
+  familia: string
+  modelo: string
   brand: string
   price: number
   originalPrice?: number
@@ -296,6 +299,26 @@ interface TireCardProps {
   onSelect: (tire: Tire) => void
 }
 
+/** Quita "Neumatico MARCA " del título comercial cuando no hay familia/modelo en CRM. */
+function tituloSinPrefijoComercial(name: string, brand: string) {
+  let s = String(name || '').trim()
+  if (!s) return ''
+  s = s.replace(/^(neumático|neumatico)\s+/i, '').trim()
+  const b = String(brand || '').trim()
+  if (b) {
+    const esc = b.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    s = s.replace(new RegExp(`^${esc}\\s+`, 'i'), '').trim()
+  }
+  return s
+}
+
+function tireFamiliaModeloLine(tire: Tire) {
+  const parts = [tire.familia, tire.modelo].filter(Boolean)
+  if (parts.length) return parts.join(' · ')
+  const short = tituloSinPrefijoComercial(tire.name, tire.brand)
+  return short || tire.size || '—'
+}
+
 function TireCard({ tire, quantity, deliveryType, deliveryLabel, onSelect }: TireCardProps) {
   const subtotal = tire.price * quantity
   
@@ -326,7 +349,9 @@ function TireCard({ tire, quantity, deliveryType, deliveryLabel, onSelect }: Tir
           <div className="flex items-center gap-2 mb-1">
             <BrandLogo brand={tire.brand} className="h-4 w-auto text-foreground" />
           </div>
-          <h3 className="text-base font-semibold text-foreground mb-1 line-clamp-1">{tire.name}</h3>
+          <p className="text-sm font-medium text-foreground mb-1 line-clamp-2">
+            {tireFamiliaModeloLine(tire)}
+          </p>
           <p className="text-xs text-muted-foreground mb-3">Medida: {tire.size}</p>
           
           <div className="flex flex-wrap gap-1.5 min-h-[28px]">
@@ -503,7 +528,7 @@ function ReservationModal({ tire, quantity, deliveryType, workshops, comunaLabel
               </div>
               <div className="flex-1">
                 <p className="text-sm text-accent font-medium">{tire.brand}</p>
-                <h3 className="text-lg font-semibold text-foreground">{tire.name}</h3>
+                <p className="text-lg font-semibold text-foreground">{tireFamiliaModeloLine(tire)}</p>
                 <p className="text-sm text-muted-foreground">Medida: {tire.size}</p>
                 <p className="text-sm text-muted-foreground">Cantidad: {quantity} neumáticos</p>
               </div>
@@ -803,7 +828,7 @@ function ReservationModal({ tire, quantity, deliveryType, workshops, comunaLabel
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-xs text-accent font-medium">{tire.brand}</p>
-                        <p className="font-medium text-foreground">{tire.name}</p>
+                        <p className="font-medium text-foreground">{tireFamiliaModeloLine(tire)}</p>
                         <p className="text-sm text-muted-foreground">{quantity} unidades</p>
                       </div>
                       <div className="text-right">
@@ -1109,6 +1134,13 @@ export interface ResultsPageProps {
   }) => void
   /** Si el catálogo respondió vacío: URL llamada y claves del JSON (diagnóstico Leadflow). */
   catalogEmptyHint?: { requestUrl: string; topLevelKeys: string[] } | null
+  /** Cuando cambian cantidad / entrega / etc., sincronizar con el wizard (checkout, talleres API). */
+  onFiltersSync?: (filters: {
+    quantity: number
+    size: string
+    comuna: string
+    delivery: string
+  }) => void
 }
 
 export function ResultsPage({
@@ -1124,6 +1156,7 @@ export function ResultsPage({
   initialDelivery,
   onCheckout,
   catalogEmptyHint,
+  onFiltersSync,
 }: ResultsPageProps) {
   const brandName = useBrandStore((s) => s.name)
   const brandLogoUrl = useBrandStore((s) => s.logoUrl)
@@ -1143,6 +1176,10 @@ export function ResultsPage({
       delivery: initialDelivery,
     })
   }, [initialQuantity, initialSizeId, initialComunaId, initialDelivery])
+
+  useEffect(() => {
+    onFiltersSync?.(filters)
+  }, [filters, onFiltersSync])
 
   const [selectedTire, setSelectedTire] = useState<Tire | null>(null)
 

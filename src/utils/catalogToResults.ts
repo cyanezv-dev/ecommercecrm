@@ -1,4 +1,5 @@
 import type { Tire, Workshop } from '@/components/results/ResultsPage'
+import { listPriceWithIva, unitPriceWithIva } from '@/utils/format'
 
 function asRecord(v: unknown): Record<string, unknown> {
   return v && typeof v === 'object' ? (v as Record<string, unknown>) : {}
@@ -15,11 +16,30 @@ function stableIdFromParts(...parts: string[]) {
  * Convierte un producto del API `/catalog` (CRM) al modelo de tarjeta que usa la UI V0.
  * Único lugar donde se traducen nombres de campos CRM → vista resultados.
  */
+function customFieldsRecord(raw: unknown): Record<string, unknown> {
+  if (raw && typeof raw === 'object' && !Array.isArray(raw)) return asRecord(raw)
+  if (typeof raw === 'string') {
+    try {
+      const j = JSON.parse(raw) as unknown
+      if (j && typeof j === 'object' && !Array.isArray(j)) return asRecord(j)
+    } catch {
+      /* */
+    }
+  }
+  return {}
+}
+
 export function mapCatalogProductToTire(product: unknown): Tire {
   const p = asRecord(product)
-  const cf = asRecord(p.custom_fields)
+  const cf = customFieldsRecord(p.custom_fields)
+  const familia = String(
+    cf.familia ?? cf.Familia ?? p.familia ?? '',
+  ).trim()
+  const modelo = String(
+    cf.modelo_neumatico ?? cf.modelo ?? p.modelo_neumatico ?? p.modelo ?? '',
+  ).trim()
   const name = String(
-    p.name ?? p.titulo ?? p.nombre ?? p.title ?? p.descripcion ?? p.modelo ?? '',
+    p.name ?? p.titulo ?? p.nombre ?? p.title ?? p.modelo ?? '',
   ).trim()
   const brand = String(p.brand ?? p.marca ?? p.fabricante ?? '').trim()
   const medida = String(cf.medida ?? p.medida ?? p.medida_texto ?? '').trim()
@@ -28,16 +48,15 @@ export function mapCatalogProductToTire(product: unknown): Tire {
   if (!id) {
     id = stableIdFromParts(name, brand, medida, JSON.stringify(Object.keys(p).sort()).slice(0, 80))
   }
-  const unit = Number(
-    p.price_offer ??
-      p.precioOferta ??
-      p.precio ??
-      p.price ??
-      p.valor ??
-      p.precio_unitario ??
-      0,
-  )
-  const normal = Number(p.price_normal ?? p.precioNormal ?? p.precio_lista ?? 0)
+  const rawNormal =
+    parseFloat(
+      String(
+        p.price_normal ?? p.precioNormal ?? p.precio_lista ?? p.precio ?? p.price ?? 0,
+      ),
+    ) || 0
+  const rawOffer = parseFloat(String(p.price_offer ?? p.precioOferta ?? 0)) || 0
+  const normalIva = listPriceWithIva(p)
+  const unitIva = unitPriceWithIva(p)
   const tierRaw = String(cf.tier ?? p.tier ?? 'Económico')
   let category: Tire['category'] = 'economico'
   if (tierRaw === 'Premium') category = 'premium'
@@ -50,7 +69,9 @@ export function mapCatalogProductToTire(product: unknown): Tire {
   )
 
   let badge: string | undefined
-  if (normal > unit && unit > 0) badge = `-${Math.round((1 - unit / normal) * 100)}%`
+  if (rawOffer > 0 && rawNormal > 0 && rawOffer < rawNormal) {
+    badge = `-${Math.round((1 - rawOffer / rawNormal) * 100)}%`
+  }
 
   const features: string[] = []
   if (horas <= 48) features.push(`~${Math.round(horas)} h entrega`)
@@ -63,9 +84,12 @@ export function mapCatalogProductToTire(product: unknown): Tire {
   return {
     id,
     name,
+    familia,
+    modelo,
     brand,
-    price: Math.round(unit),
-    originalPrice: normal > unit ? Math.round(normal) : undefined,
+    price: unitIva,
+    originalPrice:
+      rawOffer > 0 && rawNormal > 0 && rawOffer < rawNormal ? normalIva : undefined,
     image: img || 'https://placehold.co/600x450/eeeeee/666666?text=Sin+foto',
     badge,
     rating: 4.5,
@@ -99,6 +123,12 @@ export function mapApiWorkshopToResultsWorkshop(taller: unknown): Workshop {
 export function wizardDeliveryToV0(necesidad: string): string {
   if (necesidad === 'instalacion') return 'serviteca'
   return 'despacho'
+}
+
+/** Inverso de `wizardDeliveryToV0`: valor del filtro Entrega → `wizard.necesidad` */
+export function v0DeliveryToWizardNecesidad(delivery: string): string {
+  if (delivery === 'serviteca' || delivery === 'instalacion-domicilio') return 'instalacion'
+  return 'neumaticos'
 }
 
 export function medidaFilterFromWizard(wizard: {
