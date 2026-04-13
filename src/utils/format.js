@@ -80,6 +80,22 @@ export function canonicalMedidaFilterId(label) {
   return s.replace(/\s+/g, '-').replace(/\//g, '-').replace(/_/g, '-')
 }
 
+/** Invierte el `id` del filtro (ancho-perfil-aro o slug) a etiqueta tipo 205/55R16. */
+export function medidaLabelFromFilterId(id) {
+  const s = String(id || '').trim()
+  if (!s) return ''
+  const tryParse = (label) => {
+    const p = parseMedida(label)
+    if (p.ancho && p.perfil && p.aro) return `${p.ancho}/${p.perfil}R${p.aro}`
+    return ''
+  }
+  const fromSlash = tryParse(s.replace(/-/g, '/'))
+  if (fromSlash) return fromSlash
+  const fromR = tryParse(s.replace(/^(\d{2,3})-(\d{2})(R)(\d{2})$/i, '$1/$2R$4'))
+  if (fromR) return fromR
+  return ''
+}
+
 /** Convierte fecha "hoy" / "mañana" / "esta semana" a ISO */
 export function fechaToISO(valor) {
   const d = new Date()

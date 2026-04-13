@@ -10,7 +10,7 @@ import {
   apiBaseLooksSameOriginAsStorefront,
   getResolvedApiBase,
 } from '@/utils/api'
-import { canonicalMedidaFilterId, parseMedida } from '@/utils/format'
+import { canonicalMedidaFilterId, medidaLabelFromFilterId, parseMedida } from '@/utils/format'
 import { Button } from '@/components/ui/button'
 import { ResultsPage } from '@/components/results/ResultsPage'
 import { COMUNAS_CL } from '@/utils/comunas'
@@ -35,23 +35,6 @@ function medidaTripletKey(w) {
 function labelToMedidaKey(label) {
   const p = parseMedida(String(label || '').trim())
   if (p.ancho && p.perfil && p.aro) return `${p.ancho}/${p.perfil}/${p.aro}`
-  return ''
-}
-
-/** Invierte el `id` del filtro (canónico ancho-perfil-aro o slug) a etiqueta tipo 205/55R16. */
-function medidaLabelFromFilterId(id) {
-  const s = String(id || '').trim()
-  if (!s) return ''
-  const tryParse = (label) => {
-    const p = parseMedida(label)
-    if (p.ancho && p.perfil && p.aro) return `${p.ancho}/${p.perfil}R${p.aro}`
-    return ''
-  }
-  // Id canónico: 205-55-16 → 205/55/16 (parseMedida lo acepta)
-  const fromSlash = tryParse(s.replace(/-/g, '/'))
-  if (fromSlash) return fromSlash
-  const fromR = tryParse(s.replace(/^(\d{2,3})-(\d{2})(R)(\d{2})$/i, '$1/$2R$4'))
-  if (fromR) return fromR
   return ''
 }
 
@@ -241,6 +224,35 @@ export default function Results() {
     sizeFilterOptionsRef.current = sizeFilterOptions
   }, [sizeFilterOptions])
 
+  const fetchMedidaOptionsForSearch = useCallback(
+    async (query) => {
+      const q = String(query || '').trim()
+      if (!q) return []
+      const norm = (s) =>
+        String(s || '')
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .toLowerCase()
+      const qn = norm(q)
+      const toRow = (label) => {
+        const l = String(label || '').trim()
+        if (!l || l === '—') return null
+        return {
+          id: canonicalMedidaFilterId(l) || l.replace(/\s+/g, '-').replace(/\//g, '-'),
+          label: l,
+        }
+      }
+      const { medidas } = await fetchCatalogMedidas({ q, limit: 400 })
+      const fromApi = (medidas || []).map(toRow).filter(Boolean)
+      if (fromApi.length) return fromApi
+      return (catalogMedidasList || [])
+        .filter((label) => norm(label).includes(qn))
+        .map(toRow)
+        .filter(Boolean)
+    },
+    [catalogMedidasList],
+  )
+
   const syncFiltersToWizard = useCallback(
     (f) => {
       const necesidad = v0DeliveryToWizardNecesidad(f.delivery)
@@ -413,6 +425,7 @@ export default function Results() {
       initialDelivery={wizardDeliveryToV0(wizard.necesidad)}
       onFiltersSync={syncFiltersToWizard}
       onCheckout={handleCheckout}
+      fetchMedidaOptionsForSearch={fetchMedidaOptionsForSearch}
     />
   )
 }

@@ -1,11 +1,12 @@
 import * as React from "react"
-import { useState, useMemo, useEffect } from "react"
+import { useState, useMemo, useEffect, useRef } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { ArrowRight, ArrowLeft, Phone, ShieldCheck, Car, MapPin, ChevronDown, Check, Truck, Home, Store, Circle, Clock, Navigation, RotateCcw, X, Calendar, Zap, Settings2, CreditCard, Lock, ChevronRight, Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { useBrandStore } from "@/store/brand"
 import { comunasAutocompleteOptions } from "@/utils/comunasOptions"
+import { medidaLabelFromFilterId } from "@/utils/format"
 export type CatalogBadgeVariant = "ext" | "oem" | "runflat"
 
 export interface Tire {
@@ -349,6 +350,18 @@ interface MedidaAutocompleteFilterProps {
   options: { id: string; label: string }[]
   value: string
   onChange: (value: string) => void
+  /** Consulta `GET /catalog/medidas?q=…` mientras el usuario escribe (p. ej. ancho 235). */
+  fetchMedidaOptionsForSearch?: (query: string) => Promise<{ id: string; label: string }[]>
+}
+
+function mergeMedidaOptionLists(
+  a: { id: string; label: string }[],
+  b: { id: string; label: string }[],
+) {
+  const m = new Map<string, { id: string; label: string }>()
+  for (const o of a) m.set(o.id, o)
+  for (const o of b) if (!m.has(o.id)) m.set(o.id, o)
+  return [...m.values()]
 }
 
 function normMedidaSearch(s: string) {
@@ -358,23 +371,76 @@ function normMedidaSearch(s: string) {
     .toLowerCase()
 }
 
-function MedidaAutocompleteFilter({ options, value, onChange }: MedidaAutocompleteFilterProps) {
+function MedidaAutocompleteFilter({
+  options,
+  value,
+  onChange,
+  fetchMedidaOptionsForSearch,
+}: MedidaAutocompleteFilterProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
+  const [remoteOptions, setRemoteOptions] = useState<{ id: string; label: string }[]>([])
+  const [remoteLoading, setRemoteLoading] = useState(false)
+  const remoteFetchRef = useRef(fetchMedidaOptionsForSearch)
+  const remoteSearchGenRef = useRef(0)
+  remoteFetchRef.current = fetchMedidaOptionsForSearch
+
+  const mergedOptions = useMemo(
+    () => mergeMedidaOptionLists(options, remoteOptions),
+    [options, remoteOptions],
+  )
 
   const rows = useMemo(() => {
     const q = normMedidaSearch(searchQuery.trim())
-    if (!q) return options
-    return options.filter(
+    if (!q) return mergedOptions
+    return mergedOptions.filter(
       (o) => normMedidaSearch(o.label).includes(q) || normMedidaSearch(o.id).includes(q),
     )
-  }, [options, searchQuery])
+  }, [mergedOptions, searchQuery])
 
-  const selectedLabel = options.find((o) => o.id === value)?.label || "Seleccionar"
+  const selectedLabel = mergedOptions.find((o) => o.id === value)?.label || "Seleccionar"
 
   useEffect(() => {
-    if (isOpen) setSearchQuery("")
+    if (isOpen) {
+      setSearchQuery("")
+      setRemoteOptions([])
+      setRemoteLoading(false)
+    }
   }, [isOpen])
+
+  useEffect(() => {
+    if (!fetchMedidaOptionsForSearch || !isOpen) return
+    const raw = searchQuery.trim()
+    if (raw.length < 2) {
+      setRemoteOptions([])
+      setRemoteLoading(false)
+      return
+    }
+    setRemoteLoading(true)
+    let cancelled = false
+    const timer = window.setTimeout(() => {
+      if (cancelled) return
+      const fn = remoteFetchRef.current
+      if (!fn) return
+      const rid = ++remoteSearchGenRef.current
+      void fn(raw)
+        .then((list) => {
+          if (cancelled || rid !== remoteSearchGenRef.current) return
+          setRemoteOptions(list || [])
+        })
+        .catch(() => {
+          if (cancelled || rid !== remoteSearchGenRef.current) return
+          setRemoteOptions([])
+        })
+        .finally(() => {
+          if (!cancelled && rid === remoteSearchGenRef.current) setRemoteLoading(false)
+        })
+    }, 320)
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
+    }
+  }, [searchQuery, isOpen, fetchMedidaOptionsForSearch])
 
   return (
     <div className="relative min-w-[160px] max-w-[min(100vw-3rem,300px)]">
@@ -433,7 +499,9 @@ function MedidaAutocompleteFilter({ options, value, onChange }: MedidaAutocomple
               </div>
               <div className="overflow-y-auto py-1 min-h-0">
                 {rows.length === 0 ? (
-                  <p className="px-4 py-6 text-sm text-muted-foreground text-center">Sin coincidencias</p>
+                  <p className="px-4 py-6 text-sm text-muted-foreground text-center">
+                    {remoteLoading ? "Buscando en catálogo…" : "Sin coincidencias"}
+                  </p>
                 ) : (
                   rows.map((option) => (
                     <button
@@ -1397,6 +1465,8 @@ export interface ResultsPageProps {
     comuna: string
     delivery: string
   }) => void
+  /** Búsqueda remota de medidas al escribir en el desplegable (param `q` del API). */
+  fetchMedidaOptionsForSearch?: (query: string) => Promise<{ id: string; label: string }[]>
 }
 
 export function ResultsPage({
@@ -1413,6 +1483,7 @@ export function ResultsPage({
   onCheckout,
   catalogEmptyHint,
   onFiltersSync,
+  fetchMedidaOptionsForSearch,
 }: ResultsPageProps) {
   const brandName = useBrandStore((s) => s.name)
   const brandLogoUrl = useBrandStore((s) => s.logoUrl)
@@ -1462,7 +1533,10 @@ export function ResultsPage({
       ""
     )
   }, [comunaWizard.comuna, comunaWizard.comunaNombre, filters.comuna])
-  const sizeLabel = sizeFilterOptions.find((s) => s.id === filters.size)?.label || ""
+  const sizeLabel = useMemo(() => {
+    const fromOpts = sizeFilterOptions.find((s) => s.id === filters.size)?.label
+    return (fromOpts && fromOpts.trim()) || medidaLabelFromFilterId(filters.size) || ""
+  }, [sizeFilterOptions, filters.size])
 
   if (isLoading) {
     return (
@@ -1596,6 +1670,7 @@ export function ResultsPage({
               options={sizeFilterOptions}
               value={filters.size}
               onChange={(value) => setFilters((prev) => ({ ...prev, size: value }))}
+              fetchMedidaOptionsForSearch={fetchMedidaOptionsForSearch}
             />
             
             <ComunaAutocompleteFilter
