@@ -149,6 +149,9 @@ export function apiBaseLooksSameOriginAsStorefront() {
 
 const API_BASE = resolveApiBase()
 
+/** Catálogo y medidas pueden tardar más que el default (consultas / joins). */
+const CATALOG_HTTP_TIMEOUT_MS = 60000
+
 export const http = axios.create({
   baseURL: API_BASE,
   timeout: 15000,
@@ -413,11 +416,11 @@ function attachEmptyDebug(norm, axiosCfg, rawPayload) {
 export async function fetchProducts({ ancho, perfil, aro, search, limit = 60 }) {
   const params = { ancho, perfil, aro, search, limit }
   const url1 = buildCatalogQuery(params, { requireAvailability: true })
-  const r1 = await http.get(url1)
+  const r1 = await http.get(url1, { timeout: CATALOG_HTTP_TIMEOUT_MS })
   const n1 = normalizeCatalogResponse(r1.data)
   if (n1.products?.length) return n1
   const url2 = buildCatalogQuery(params, { requireAvailability: false })
-  const r2 = await http.get(url2)
+  const r2 = await http.get(url2, { timeout: CATALOG_HTTP_TIMEOUT_MS })
   const n2 = normalizeCatalogResponse(r2.data)
   if (n2.products?.length) return n2
   return attachEmptyDebug(n2, r2.config, r2.data)
@@ -429,7 +432,9 @@ export async function fetchCatalogMedidas({ q = '', limit = 300 } = {}) {
   const qs = String(q || '').trim()
   if (qs) sp.set('q', qs)
   sp.set('limit', String(Math.min(Math.max(Number(limit) || 300, 10), 500)))
-  const d = await api.get(`/catalog/medidas?${sp.toString()}`)
+  const d = await http
+    .get(`/catalog/medidas?${sp.toString()}`, { timeout: CATALOG_HTTP_TIMEOUT_MS })
+    .then((r) => r.data)
   return { medidas: Array.isArray(d?.medidas) ? d.medidas : [] }
 }
 
