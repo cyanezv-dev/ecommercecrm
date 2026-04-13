@@ -5,6 +5,7 @@ import { useSessionStore } from '@/store/session'
 import {
   fetchProducts,
   fetchWorkshops,
+  fetchCatalogMedidas,
   axiosRequestDisplayUrl,
   apiBaseLooksSameOriginAsStorefront,
   getResolvedApiBase,
@@ -66,6 +67,35 @@ function buildSizeFilterOptions(wizard, tires) {
     }
   }
   return list.length ? list : [current]
+}
+
+/** Medidas del catálogo completo + las de la página actual (sin duplicar). */
+function mergeCatalogMedidasIntoSizeOptions(wizard, tires, catalogMedidas) {
+  const base = buildSizeFilterOptions(wizard, tires)
+  const seen = new Set(base.map((o) => o.id))
+  const extra = []
+  for (const label of catalogMedidas || []) {
+    const l = String(label || '').trim()
+    if (!l || l === '—') continue
+    const row = {
+      id: l.replace(/\s+/g, '-').replace(/\//g, '-'),
+      label: l,
+    }
+    if (seen.has(row.id)) continue
+    seen.add(row.id)
+    extra.push(row)
+  }
+  extra.sort((a, b) =>
+    a.label.localeCompare(b.label, 'es', { numeric: true, sensitivity: 'base' }),
+  )
+  const out = [...base, ...extra]
+  const { id: curId } = medidaFilterFromWizard(wizard)
+  const idx = out.findIndex((x) => x.id === curId)
+  if (idx > 0) {
+    const [row] = out.splice(idx, 1)
+    out.unshift(row)
+  }
+  return out.length ? out : [medidaFilterFromWizard(wizard)]
 }
 
 function asWorkshopList(raw) {
@@ -165,9 +195,16 @@ export default function Results() {
     [workshopsList],
   )
 
+  const { data: medidasPayload } = useQuery({
+    queryKey: ['catalog-medidas'],
+    queryFn: () => fetchCatalogMedidas({ limit: 400 }),
+    staleTime: 5 * 60 * 1000,
+  })
+  const catalogMedidasList = medidasPayload?.medidas ?? []
+
   const sizeFilterOptions = useMemo(
-    () => buildSizeFilterOptions(wizard, tires),
-    [wizard.medida, wizard.ancho, wizard.perfil, wizard.aro, tires],
+    () => mergeCatalogMedidasIntoSizeOptions(wizard, tires, catalogMedidasList),
+    [wizard.medida, wizard.ancho, wizard.perfil, wizard.aro, tires, catalogMedidasList],
   )
 
   const initialSizeId = useMemo(() => {

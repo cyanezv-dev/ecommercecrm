@@ -345,6 +345,123 @@ function ComunaAutocompleteFilter({ comunaWizard, value, onChange }: ComunaAutoc
   )
 }
 
+interface MedidaAutocompleteFilterProps {
+  options: { id: string; label: string }[]
+  value: string
+  onChange: (value: string) => void
+}
+
+function normMedidaSearch(s: string) {
+  return String(s || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+}
+
+function MedidaAutocompleteFilter({ options, value, onChange }: MedidaAutocompleteFilterProps) {
+  const [isOpen, setIsOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState("")
+
+  const rows = useMemo(() => {
+    const q = normMedidaSearch(searchQuery.trim())
+    if (!q) return options
+    return options.filter(
+      (o) => normMedidaSearch(o.label).includes(q) || normMedidaSearch(o.id).includes(q),
+    )
+  }, [options, searchQuery])
+
+  const selectedLabel = options.find((o) => o.id === value)?.label || "Seleccionar"
+
+  useEffect(() => {
+    if (isOpen) setSearchQuery("")
+  }, [isOpen])
+
+  return (
+    <div className="relative min-w-[160px] max-w-[min(100vw-3rem,300px)]">
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className={cn(
+          "flex items-center gap-2 px-4 py-3 rounded-xl border-2 transition-all duration-200 text-left w-full",
+          "hover:border-primary hover:bg-card",
+          isOpen ? "border-primary bg-card shadow-md" : "border-border bg-card",
+        )}
+      >
+        <span className="text-accent shrink-0">
+          <Circle className="w-4 h-4" />
+        </span>
+        <div className="flex-1 min-w-0">
+          <span className="block text-xs text-muted-foreground uppercase tracking-wide">Medida</span>
+          <span className="block text-sm font-medium text-foreground truncate">{selectedLabel}</span>
+        </div>
+        <ChevronDown
+          className={cn(
+            "w-4 h-4 text-muted-foreground transition-transform shrink-0",
+            isOpen && "rotate-180",
+          )}
+        />
+      </button>
+
+      <AnimatePresence>
+        {isOpen && (
+          <>
+            <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} aria-hidden />
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.15 }}
+              className="absolute top-full left-0 right-0 mt-2 z-50 bg-card border border-border rounded-xl shadow-lg overflow-hidden flex flex-col max-h-80"
+            >
+              <div className="p-2 border-b border-border">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+                  <input
+                    type="search"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Buscar medida…"
+                    className="w-full pl-9 pr-3 py-2.5 text-sm rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                    autoFocus
+                  />
+                </div>
+                {!searchQuery.trim() && (
+                  <p className="px-2 pt-2 text-[11px] text-muted-foreground">
+                    Todas las medidas del catálogo; escribe para filtrar (ej. 205 o R16)
+                  </p>
+                )}
+              </div>
+              <div className="overflow-y-auto py-1 min-h-0">
+                {rows.length === 0 ? (
+                  <p className="px-4 py-6 text-sm text-muted-foreground text-center">Sin coincidencias</p>
+                ) : (
+                  rows.map((option) => (
+                    <button
+                      key={option.id}
+                      type="button"
+                      onClick={() => {
+                        onChange(option.id)
+                        setIsOpen(false)
+                      }}
+                      className={cn(
+                        "w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-muted",
+                        value === option.id && "bg-primary/5",
+                      )}
+                    >
+                      <span className="flex-1 text-sm text-foreground">{option.label}</span>
+                      {value === option.id && <Check className="w-4 h-4 text-primary shrink-0" />}
+                    </button>
+                  ))
+                )}
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
 interface QuantityFilterProps {
   value: number
   onChange: (value: number) => void
@@ -1475,12 +1592,10 @@ export function ResultsPage({
               onChange={(value) => setFilters(prev => ({ ...prev, quantity: value }))}
             />
             
-            <FilterDropdown
-              label="Medida"
-              value={filters.size}
+            <MedidaAutocompleteFilter
               options={sizeFilterOptions}
-              onChange={(value) => setFilters(prev => ({ ...prev, size: value }))}
-              icon={<Circle className="w-4 h-4" />}
+              value={filters.size}
+              onChange={(value) => setFilters((prev) => ({ ...prev, size: value }))}
             />
             
             <ComunaAutocompleteFilter

@@ -423,6 +423,16 @@ export async function fetchProducts({ ancho, perfil, aro, search, limit = 60 }) 
   return attachEmptyDebug(n2, r2.config, r2.data)
 }
 
+/** Lista de medidas distintas del catálogo (para filtro / autocomplete en resultados). */
+export async function fetchCatalogMedidas({ q = '', limit = 300 } = {}) {
+  const sp = new URLSearchParams()
+  const qs = String(q || '').trim()
+  if (qs) sp.set('q', qs)
+  sp.set('limit', String(Math.min(Math.max(Number(limit) || 300, 10), 500)))
+  const d = await api.get(`/catalog/medidas?${sp.toString()}`)
+  return { medidas: Array.isArray(d?.medidas) ? d.medidas : [] }
+}
+
 /** Talleres disponibles para instalación */
 export const fetchWorkshops = ({ fecha, aro, lat, lng } = {}) => {
   const q = new URLSearchParams()
