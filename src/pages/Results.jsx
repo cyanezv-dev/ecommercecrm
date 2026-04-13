@@ -6,6 +6,7 @@ import {
   fetchProducts,
   fetchWorkshops,
   fetchCatalogMedidas,
+  fetchDistinctMedidasFromCatalogSearch,
   axiosRequestDisplayUrl,
   apiBaseLooksSameOriginAsStorefront,
   getResolvedApiBase,
@@ -245,10 +246,13 @@ export default function Results() {
       const { medidas } = await fetchCatalogMedidas({ q, limit: 400 })
       const fromApi = (medidas || []).map(toRow).filter(Boolean)
       if (fromApi.length) return fromApi
-      return (catalogMedidasList || [])
+      const fromCache = (catalogMedidasList || [])
         .filter((label) => norm(label).includes(qn))
         .map(toRow)
         .filter(Boolean)
+      if (fromCache.length) return fromCache
+      const fromCatalog = await fetchDistinctMedidasFromCatalogSearch({ search: q, limit: 250 })
+      return fromCatalog.map(toRow).filter(Boolean)
     },
     [catalogMedidasList],
   )

@@ -393,10 +393,14 @@ function MedidaAutocompleteFilter({
   const rows = useMemo(() => {
     const q = normMedidaSearch(searchQuery.trim())
     if (!q) return mergedOptions
-    return mergedOptions.filter(
-      (o) => normMedidaSearch(o.label).includes(q) || normMedidaSearch(o.id).includes(q),
-    )
-  }, [mergedOptions, searchQuery])
+    const matches = (o: { id: string; label: string }) =>
+      normMedidaSearch(o.label).includes(q) || normMedidaSearch(o.id).includes(q)
+    const hit = mergedOptions.filter(matches)
+    if (hit.length) return hit
+    /* Respuesta remota ya filtrada por el API; mostrar aunque la etiqueta no contenga el substring (p. ej. formatos raros). */
+    if (remoteOptions.length) return remoteOptions
+    return []
+  }, [mergedOptions, searchQuery, remoteOptions])
 
   const selectedLabel = mergedOptions.find((o) => o.id === value)?.label || "Seleccionar"
 
@@ -433,7 +437,7 @@ function MedidaAutocompleteFilter({
           setRemoteOptions([])
         })
         .finally(() => {
-          if (!cancelled && rid === remoteSearchGenRef.current) setRemoteLoading(false)
+          if (rid === remoteSearchGenRef.current) setRemoteLoading(false)
         })
     }, 320)
     return () => {

@@ -638,6 +638,46 @@ async function fetchDistinctMedidasFromCatalogSample(limit) {
   )
 }
 
+/**
+ * Medidas distintas desde `GET /catalog?search=…` (sin ancho/perfil/aro). Útil cuando
+ * `/catalog/medidas?q=` no devuelve datos pero el listado de productos sí acepta `search`.
+ */
+export async function fetchDistinctMedidasFromCatalogSearch({ search, limit = 200 } = {}) {
+  const q = String(search || '').trim()
+  if (!q) return []
+  const lim = Math.min(Math.max(Number(limit) || 200, 30), 500)
+  const enc = encodeURIComponent(q)
+  const tryUrls = [
+    `/catalog?active=true&limit=${lim}&availability=false&search=${enc}`,
+    `/catalog?active=true&limit=${lim}&availability=true&search=${enc}`,
+  ]
+  const byId = new Map()
+  const push = (label) => {
+    const l = String(label || '').trim()
+    if (!l || l === '—') return
+    const id = canonicalMedidaFilterId(l) || l.replace(/\s+/g, '-').replace(/\//g, '-')
+    if (!byId.has(id)) byId.set(id, l)
+  }
+  for (const url of tryUrls) {
+    try {
+      const r = await http.get(url, { timeout: CATALOG_HTTP_TIMEOUT_MS })
+      const n = normalizeCatalogResponse(r.data)
+      for (const p of n.products || []) {
+        const m = extractMedidaLabelFromCatalogProduct(p)
+        if (m) push(m)
+      }
+      if (byId.size) {
+        return [...byId.values()].sort((x, y) =>
+          x.localeCompare(y, 'es', { numeric: true, sensitivity: 'base' }),
+        )
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+  return []
+}
+
 /** Lista de medidas distintas del catálogo (para filtro / autocomplete en resultados). */
 export async function fetchCatalogMedidas({ q = '', limit = 300 } = {}) {
   const sp = new URLSearchParams()
