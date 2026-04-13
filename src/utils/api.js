@@ -1,5 +1,7 @@
 import axios from 'axios'
 import { searchComunas } from './comunas'
+import { canonicalMedidaFilterId } from './format.js'
+import { extractMedidaLabelFromCatalogProduct } from './catalogToResults'
 
 function isLoopbackHost(hostname) {
   return hostname === 'localhost' || hostname === '127.0.0.1'
@@ -480,7 +482,13 @@ function medidaLabelFromMedidasRow(row) {
       o.codigoMedida ??
       '',
   ).trim()
-  return s && s !== '—' ? s : ''
+  if (s && s !== '—') return s
+  const a = String(o.ancho ?? o.width ?? o.Ancho ?? '').trim()
+  const perf = String(o.perfil ?? o.profile ?? o.Perfil ?? '').trim()
+  let ar = String(o.aro ?? o.diameter ?? o.Aro ?? '').trim()
+  if (/^r/i.test(ar)) ar = ar.slice(1)
+  if (a && perf && ar) return `${a}/${perf}R${ar}`
+  return ''
 }
 
 /**
@@ -580,6 +588,56 @@ export function normalizeCatalogMedidasPayload(payload) {
   return []
 }
 
+function mergeMedidaStringListsDeduped(a, b) {
+  const byId = new Map()
+  const push = (label) => {
+    const l = String(label || '').trim()
+    if (!l || l === '—') return
+    const id = canonicalMedidaFilterId(l) || l.replace(/\s+/g, '-').replace(/\//g, '-')
+    if (!byId.has(id)) byId.set(id, l)
+  }
+  for (const x of a || []) push(x)
+  for (const x of b || []) push(x)
+  return [...byId.values()].sort((x, y) =>
+    x.localeCompare(y, 'es', { numeric: true, sensitivity: 'base' }),
+  )
+}
+
+/**
+ * Si `/catalog/medidas` viene vacío o casi vacío, deduce medidas de una muestra amplia
+ * de `/catalog` sin filtrar por medida (mismos productos que expone el CRM en listado general).
+ */
+async function fetchDistinctMedidasFromCatalogSample(limit) {
+  const lim = Math.min(Math.max(Number(limit) || 250, 40), 500)
+  const urls = [
+    `/catalog?active=true&limit=${lim}&availability=false`,
+    `/catalog?active=true&limit=${lim}&availability=true`,
+  ]
+  const byId = new Map()
+  const push = (label) => {
+    const l = String(label || '').trim()
+    if (!l || l === '—') return
+    const id = canonicalMedidaFilterId(l) || l.replace(/\s+/g, '-').replace(/\//g, '-')
+    if (!byId.has(id)) byId.set(id, l)
+  }
+  for (const url of urls) {
+    try {
+      const r = await http.get(url, { timeout: CATALOG_HTTP_TIMEOUT_MS })
+      const n = normalizeCatalogResponse(r.data)
+      for (const p of n.products || []) {
+        const m = extractMedidaLabelFromCatalogProduct(p)
+        if (m) push(m)
+      }
+      if (byId.size > 30) break
+    } catch {
+      /* ignore */
+    }
+  }
+  return [...byId.values()].sort((x, y) =>
+    x.localeCompare(y, 'es', { numeric: true, sensitivity: 'base' }),
+  )
+}
+
 /** Lista de medidas distintas del catálogo (para filtro / autocomplete en resultados). */
 export async function fetchCatalogMedidas({ q = '', limit = 300 } = {}) {
   const sp = new URLSearchParams()
@@ -589,7 +647,14 @@ export async function fetchCatalogMedidas({ q = '', limit = 300 } = {}) {
   const d = await http
     .get(`/catalog/medidas?${sp.toString()}`, { timeout: CATALOG_HTTP_TIMEOUT_MS })
     .then((r) => r.data)
-  const medidas = normalizeCatalogMedidasPayload(d)
+  let medidas = mergeMedidaStringListsDeduped(normalizeCatalogMedidasPayload(d), [])
+  /* Pocas medidas distintas: API duplicada, vacía o estructura rara → completar con muestra de /catalog */
+  if (!qs && medidas.length < 12) {
+    const sample = await fetchDistinctMedidasFromCatalogSample(
+      Math.min(Math.max(Number(limit) || 300, 10), 500),
+    )
+    medidas = mergeMedidaStringListsDeduped(medidas, sample)
+  }
   return { medidas }
 }
 

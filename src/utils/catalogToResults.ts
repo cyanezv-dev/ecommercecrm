@@ -70,6 +70,20 @@ export function catalogBadgesFromCustomFields(cf: Record<string, unknown>): {
   return out
 }
 
+/** Texto de medida (p. ej. 205/55R16) desde una fila `/catalog` o `/catalog/medidas`. */
+export function extractMedidaLabelFromCatalogProduct(product: unknown): string {
+  const p = asRecord(product)
+  const cf = customFieldsRecord(p.custom_fields)
+  const direct = String(cf.medida ?? p.medida ?? p.medida_texto ?? cf.medida_texto ?? '').trim()
+  if (direct && direct !== '—') return direct
+  const a = String(cf.ancho ?? p.ancho ?? '').trim()
+  const perf = String(cf.perfil ?? p.perfil ?? '').trim()
+  let ar = String(cf.aro ?? p.aro ?? '').trim()
+  if (/^r/i.test(ar)) ar = ar.slice(1)
+  if (a && perf && ar) return `${a}/${perf}R${ar}`
+  return ''
+}
+
 export function mapCatalogProductToTire(product: unknown): Tire {
   const p = asRecord(product)
   const cf = customFieldsRecord(p.custom_fields)
@@ -83,7 +97,7 @@ export function mapCatalogProductToTire(product: unknown): Tire {
     p.name ?? p.titulo ?? p.nombre ?? p.title ?? p.modelo ?? '',
   ).trim()
   const brand = String(p.brand ?? p.marca ?? p.fabricante ?? '').trim()
-  const medida = String(cf.medida ?? p.medida ?? p.medida_texto ?? '').trim()
+  const medida = extractMedidaLabelFromCatalogProduct(product)
   const idRaw = p.id ?? p.sku ?? p.codigo ?? p.product_id ?? p.internal_id ?? p.uuid
   let id = String(idRaw ?? '').trim()
   if (!id) {
