@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { useBrandStore } from "@/store/brand"
 import { comunasAutocompleteOptions } from "@/utils/comunasOptions"
-import { medidaLabelFromFilterId } from "@/utils/format"
+import { medidaLabelFromFilterId, medidaLabelMatchesSearchQuery } from "@/utils/format"
 export type CatalogBadgeVariant = "ext" | "oem" | "runflat"
 
 export interface Tire {
@@ -394,7 +394,9 @@ function MedidaAutocompleteFilter({
     const q = normMedidaSearch(searchQuery.trim())
     if (!q) return mergedOptions
     const matches = (o: { id: string; label: string }) =>
-      normMedidaSearch(o.label).includes(q) || normMedidaSearch(o.id).includes(q)
+      medidaLabelMatchesSearchQuery(o.label, searchQuery.trim()) ||
+      medidaLabelMatchesSearchQuery(medidaLabelFromFilterId(o.id), searchQuery.trim()) ||
+      medidaLabelMatchesSearchQuery(o.id.replace(/-/g, "/"), searchQuery.trim())
     const hit = mergedOptions.filter(matches)
     if (hit.length) return hit
     /* Respuesta remota ya filtrada por el API; mostrar aunque la etiqueta no contenga el substring (p. ej. formatos raros). */

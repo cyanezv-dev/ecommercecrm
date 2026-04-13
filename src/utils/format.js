@@ -96,6 +96,42 @@ export function medidaLabelFromFilterId(id) {
   return ''
 }
 
+/**
+ * Coincidencia de búsqueda para medidas (autocomplete / filtro).
+ * No basta con `includes`: p. ej. "235" no aparece dentro de "205/55R16", pero sí debe
+ * matchear medidas con ancho 235; "55" puede ser perfil o aro.
+ */
+export function medidaLabelMatchesSearchQuery(label, rawQuery) {
+  const raw = String(rawQuery || '').trim()
+  if (!raw) return true
+  const lab = String(label || '').trim()
+  if (!lab) return false
+
+  const norm = (s) =>
+    String(s || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+
+  if (norm(lab).includes(norm(raw))) return true
+
+  const p = parseMedida(lab)
+  const onlyDigits = /^\d+$/.test(raw)
+  if (onlyDigits) {
+    const d = raw
+    if (d.length >= 3) return !!(p.ancho && p.ancho === d)
+    if (d.length === 2) return p.ancho === d || p.perfil === d || p.aro === d
+    return false
+  }
+
+  const alnum = (s) => norm(s).replace(/[^a-z0-9]/g, '')
+  const qc = alnum(raw)
+  const lc = alnum(lab)
+  if (qc.length >= 3 && lc.includes(qc)) return true
+
+  return false
+}
+
 /** Convierte fecha "hoy" / "mañana" / "esta semana" a ISO */
 export function fechaToISO(valor) {
   const d = new Date()

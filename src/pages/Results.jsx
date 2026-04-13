@@ -11,7 +11,12 @@ import {
   apiBaseLooksSameOriginAsStorefront,
   getResolvedApiBase,
 } from '@/utils/api'
-import { canonicalMedidaFilterId, medidaLabelFromFilterId, parseMedida } from '@/utils/format'
+import {
+  canonicalMedidaFilterId,
+  medidaLabelFromFilterId,
+  medidaLabelMatchesSearchQuery,
+  parseMedida,
+} from '@/utils/format'
 import { Button } from '@/components/ui/button'
 import { ResultsPage } from '@/components/results/ResultsPage'
 import { COMUNAS_CL } from '@/utils/comunas'
@@ -229,12 +234,6 @@ export default function Results() {
     async (query) => {
       const q = String(query || '').trim()
       if (!q) return []
-      const norm = (s) =>
-        String(s || '')
-          .normalize('NFD')
-          .replace(/[\u0300-\u036f]/g, '')
-          .toLowerCase()
-      const qn = norm(q)
       const toRow = (label) => {
         const l = String(label || '').trim()
         if (!l || l === '—') return null
@@ -247,7 +246,7 @@ export default function Results() {
       const fromApi = (medidas || []).map(toRow).filter(Boolean)
       if (fromApi.length) return fromApi
       const fromCache = (catalogMedidasList || [])
-        .filter((label) => norm(label).includes(qn))
+        .filter((label) => medidaLabelMatchesSearchQuery(label, q))
         .map(toRow)
         .filter(Boolean)
       if (fromCache.length) return fromCache
