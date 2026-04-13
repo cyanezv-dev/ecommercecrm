@@ -13,13 +13,61 @@ function browsingLocalhost() {
 }
 
 /**
+ * Leadflow expone rutas bajo `/api/...`. Si la URL pública es solo el origen
+ * (ej. `https://mi-servidor.railway.app`), axios + `/site-brand` pegaría en
+ * `/site-brand` y responde 404. Se añade `/api` solo cuando el path es `/` o vacío.
+ */
+function looksLikePlaceholderApiUrl(v) {
+  const t = String(v || '').trim().toLowerCase()
+  if (!t) return false
+  return (
+    t.includes('tu_dominio') ||
+    t.includes('reemplaza') ||
+    t.includes('tudominio') ||
+    /^https?:\/\/example\.com/i.test(t)
+  )
+}
+
+let warnedPlaceholderApiUrl = false
+
+export function normalizeLeadflowApiBase(input) {
+  const s = String(input || '').trim()
+  if (!s) return ''
+  if (s.startsWith('/')) {
+    const t = s.replace(/\/+$/, '')
+    return t || '/'
+  }
+  try {
+    const u = new URL(s)
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return s.replace(/\/$/, '')
+    const path = (u.pathname || '/').replace(/\/+$/, '') || ''
+    if (path === '' || path === '/') {
+      u.pathname = '/api'
+    }
+    return u.toString().replace(/\/$/, '')
+  } catch {
+    return s.replace(/\/$/, '')
+  }
+}
+
+/**
  * Base del API:
  * - Si `VITE_API_URL` apunta a localhost y abrís el front desde localhost (dev o
  *   `vite preview`), usamos `/api` para pasar por el proxy de Vite → Leadflow.
  * - En prod en un dominio real, se usa la URL embebida (p. ej. HTTPS en DigitalOcean).
  */
 function resolveApiBase() {
-  const raw = import.meta.env.VITE_API_URL?.trim()
+  let raw = import.meta.env.VITE_API_URL?.trim()
+  if (import.meta.env.PROD && raw && looksLikePlaceholderApiUrl(raw)) {
+    if (typeof window !== 'undefined' && !warnedPlaceholderApiUrl) {
+      warnedPlaceholderApiUrl = true
+      console.warn(
+        '[Leadflow] VITE_API_URL parece un placeholder; ignorando. ' +
+          'Configura la URL real del API en el build o en api-config.json (apiBaseUrl).',
+      )
+    }
+    raw = ''
+  }
   const localBrowser = browsingLocalhost()
 
   if (raw) {
@@ -41,10 +89,10 @@ function resolveApiBase() {
     } catch {
       /* */
     }
-    return raw
+    return normalizeLeadflowApiBase(raw) || '/api'
   }
 
-  return raw || '/api'
+  return (raw ? normalizeLeadflowApiBase(raw) : '') || '/api'
 }
 
 /** Seteado en runtime por `loadPublicApiConfig()` (p. ej. desde `public/api-config.json`). */
@@ -60,10 +108,43 @@ function getApiBase() {
       } catch {
         /* */
       }
-      return w.replace(/\/$/, '')
+      return normalizeLeadflowApiBase(w) || w.replace(/\/$/, '')
     }
   }
   return resolveApiBase()
+}
+
+/** Base del API tal como la usa axios (útil para mensajes de error en UI). */
+export function getResolvedApiBase() {
+  return getApiBase()
+}
+
+/**
+ * URL completa aproximada de un request fallido (axios pone `config.baseURL` + `config.url`).
+ */
+export function axiosRequestDisplayUrl(err) {
+  const c = err?.config
+  if (!c?.url) return ''
+  const base = String(c.baseURL || '').replace(/\/$/, '')
+  const path = String(c.url || '')
+  if (/^https?:\/\//i.test(path)) return path
+  if (!base) return path
+  return `${base}${path.startsWith('/') ? path : `/${path}`}`
+}
+
+/**
+ * True si el API se está llamando en el mismo origen que la página (típico static site
+ * sin proxy): `/api` relativo o `https://mitienda.com/api` mientras la tienda es mitienda.com.
+ */
+export function apiBaseLooksSameOriginAsStorefront() {
+  if (typeof window === 'undefined') return false
+  const b = getApiBase()
+  if (!b || b.startsWith('/')) return true
+  try {
+    return new URL(b).origin === window.location.origin
+  } catch {
+    return false
+  }
 }
 
 const API_BASE = resolveApiBase()
@@ -96,11 +177,21 @@ export const uploadSiteBrandLogo = (file) => {
   return http.post('/site-brand/logo', fd, { timeout: 60000 }).then((r) => r.data)
 }
 
-/** Actualiza nombre, razón social y/o URL del logo (solo texto) en `settings`. */
+/** Actualiza nombre, razón social y/o URLs del logo y favicon (solo texto) en `settings`. */
 export const updateSiteBrand = (body) => api.put('/site-brand', body)
 
 /** Quita la URL del logo en settings (el archivo en servidor no se elimina). */
 export const clearSiteBrandLogo = () => api.delete('/site-brand/logo')
+
+/** Sube favicon del sitio → `settings.site_brand_favicon_url` (multipart campo `favicon`). */
+export const uploadSiteBrandFavicon = (file) => {
+  const fd = new FormData()
+  fd.append('favicon', file)
+  return http.post('/site-brand/favicon', fd, { timeout: 60000 }).then((r) => r.data)
+}
+
+/** Quita la URL del favicon en site_brand (sigue aplicando company_favicon_url si existe). */
+export const clearSiteBrandFavicon = () => api.delete('/site-brand/favicon')
 
 // ── Helpers de dominio ────────────────────────────────────────
 
@@ -334,11 +425,15 @@ export async function fetchProducts({ ancho, perfil, aro, search, limit = 60 }) 
 
 /** Talleres disponibles para instalación */
 export const fetchWorkshops = ({ fecha, aro, lat, lng } = {}) => {
-  let url = `/attention/workshops?`
-  if (fecha) url += `fecha=${fecha}&`
-  if (aro)   url += `aro=${aro}&`
-  if (lat)   url += `lat=${lat}&lng=${lng}&`
-  return api.get(url)
+  const q = new URLSearchParams()
+  if (fecha) q.set('fecha', String(fecha))
+  if (aro) q.set('aro', String(aro))
+  if (lat != null && lat !== '' && lng != null && lng !== '') {
+    q.set('lat', String(lat))
+    q.set('lng', String(lng))
+  }
+  const qs = q.toString()
+  return api.get(`/attention/workshops${qs ? `?${qs}` : ''}`)
 }
 
 /** Regla de entrega para una comuna */

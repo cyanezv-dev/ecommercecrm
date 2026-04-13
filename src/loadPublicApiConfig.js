@@ -1,11 +1,14 @@
+import { normalizeLeadflowApiBase } from '@/utils/api'
+
 /**
- * En producción, si el build no definió `VITE_API_URL`, intentamos leer
- * `public/api-config.json` (mismo origen que el static site).
- * En Digital Ocean podés generar ese archivo en `build_command` desde un secreto.
+ * En producción lee `public/api-config.json` (mismo origen que el static site).
+ * Si trae `apiBaseUrl`, define `window.__ECOMM_API_BASE__` y **pisa** la URL embebida
+ * en el build (`VITE_API_URL`): sirve para corregir despliegues sin rebuild.
+ *
+ * DigitalOcean: el `build_command` puede escribir este JSON desde un secreto.
  */
 export async function loadPublicApiConfig() {
   if (import.meta.env.DEV) return
-  if (import.meta.env.VITE_API_URL?.trim()) return
 
   const path = `${import.meta.env.BASE_URL}api-config.json`.replace(/\/{2,}/g, '/')
   try {
@@ -14,7 +17,7 @@ export async function loadPublicApiConfig() {
     const j = await r.json()
     const url = typeof j?.apiBaseUrl === 'string' ? j.apiBaseUrl.trim() : ''
     if (url) {
-      window.__ECOMM_API_BASE__ = url.replace(/\/$/, '')
+      window.__ECOMM_API_BASE__ = normalizeLeadflowApiBase(url) || url.replace(/\/$/, '')
     }
   } catch {
     /* sin archivo o JSON inválido: se usa resolveApiBase() en api.js */

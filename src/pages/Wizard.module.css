@@ -308,6 +308,17 @@
   color: var(--accent-foreground);
 }
 
+/* ── Comuna (Google Places) ── */
+.googleAddressBlock {
+  margin-bottom: 14px;
+}
+.addressHint {
+  font-size: 13px;
+  color: var(--muted-foreground);
+  margin: 0 0 10px;
+  line-height: 1.45;
+}
+
 /* ── Comuna ── */
 .locBtn {
   display: flex;

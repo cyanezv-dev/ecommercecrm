@@ -1,6 +1,49 @@
+/** IVA Chile — mismo criterio que el catálogo Leadflow (precio neto × 1.19) */
+export const IVA = 1.19
+export const withIva = (n) => Math.round((parseFloat(String(n)) || 0) * IVA)
+
 /** Formatea precio en CLP */
 export const fmtPrice = (n) =>
   new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(n || 0)
+
+/**
+ * Precio unitario mostrado al cliente (con IVA): oferta si existe y es menor que lista; si no, lista.
+ * Acepta filas del API `/catalog` (price_normal / price_offer como número o string).
+ */
+export function unitPriceWithIva(producto) {
+  if (!producto || typeof producto !== 'object') return 0
+  const rawN =
+    parseFloat(
+      String(
+        producto.price_normal ??
+          producto.precioNormal ??
+          producto.precio_lista ??
+          producto.precio ??
+          producto.price ??
+          0,
+      ),
+    ) || 0
+  const rawO = parseFloat(String(producto.price_offer ?? producto.precioOferta ?? 0)) || 0
+  if (rawN <= 0 && rawO > 0) return withIva(rawO)
+  if (rawO > 0 && rawO < rawN) return withIva(rawO)
+  return withIva(rawN)
+}
+
+/** Precio de lista con IVA (para tachar cuando hay oferta) */
+export function listPriceWithIva(producto) {
+  const rawN =
+    parseFloat(
+      String(
+        producto?.price_normal ??
+          producto?.precioNormal ??
+          producto?.precio_lista ??
+          producto?.precio ??
+          producto?.price ??
+          0,
+      ),
+    ) || 0
+  return withIva(rawN)
+}
 
 /** Etiqueta de disponibilidad a partir de horas */
 export function disponibilidadLabel(horas) {

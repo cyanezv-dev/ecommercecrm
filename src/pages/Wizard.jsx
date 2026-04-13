@@ -5,6 +5,8 @@ import { ArrowLeft, ArrowRight, Check, Car, Wrench, FileText, HelpCircle, Circle
 import { useSessionStore } from '@/store/session'
 import { fetchComunas } from '@/utils/api'
 import { searchComunas, bestComunaMatchFromGeocoderText } from '@/utils/comunas'
+import { loadGoogleMapsScript } from '@/utils/googleMapsLoader'
+import { comunaFromGooglePlace } from '@/utils/googlePlaceToComuna'
 import { parseMedida } from '@/utils/format'
 import { useBrandStore } from '@/store/brand'
 import styles from './Wizard.module.css'
@@ -68,6 +70,9 @@ export default function Wizard() {
   const [locError, setLocError]       = useState('')
   const [fechaCustom, setFechaCustom] = useState('')
   const inputRef = useRef(null)
+  const addressInputRef = useRef(null)
+  const googleAutocompleteRef = useRef(null)
+  const googleMapsKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || ''
 
   // Foco automático
   useEffect(() => {
@@ -93,6 +98,7 @@ export default function Wizard() {
             setWizard({
               comuna: String(exact.codigo),
               comunaNombre: exact.nombre || String(exact.codigo),
+              direccionCliente: '',
             })
           } else {
             setComunaList(safe)
@@ -103,9 +109,76 @@ export default function Wizard() {
     return () => clearTimeout(timer)
   }, [comunaInput, setWizard])
 
+  useEffect(() => {
+    if (!googleMapsKey || STEPS[step] !== 'comuna') {
+      if (googleAutocompleteRef.current && window.google?.maps?.event) {
+        window.google.maps.event.clearInstanceListeners(googleAutocompleteRef.current)
+        googleAutocompleteRef.current = null
+      }
+      return
+    }
+
+    let cancelled = false
+    const raf = requestAnimationFrame(() => {
+      const el = addressInputRef.current
+      if (!el || cancelled) return
+
+      loadGoogleMapsScript(googleMapsKey)
+        .then(() => {
+          if (cancelled || !addressInputRef.current) return
+          const Autocomplete = window.google?.maps?.places?.Autocomplete
+          if (!Autocomplete) return
+
+          const ac = new Autocomplete(el, {
+            componentRestrictions: { country: 'cl' },
+            fields: ['address_components', 'formatted_address', 'geometry'],
+          })
+          googleAutocompleteRef.current = ac
+          ac.addListener('place_changed', () => {
+            const place = ac.getPlace()
+            if (!place?.address_components?.length) {
+              setLocError('No obtuvimos datos de esa dirección. Prueba otra o busca la comuna abajo.')
+              return
+            }
+            const hit = comunaFromGooglePlace(place)
+            if (hit?.codigo && hit?.nombre) {
+              setComunaInput(hit.nombre)
+              setComunaList([])
+              setLocError('')
+              setWizard({
+                comuna: String(hit.codigo),
+                comunaNombre: hit.nombre,
+                direccionCliente: place.formatted_address || '',
+              })
+            } else {
+              setLocError(
+                'No pudimos asociar esa dirección a una comuna de Chile. Busca la comuna manualmente o prueba otra dirección.',
+              )
+            }
+          })
+        })
+        .catch(() => {
+          if (!cancelled) {
+            setLocError(
+              'No se pudo cargar el buscador de Google. Usa tu ubicación, escribe la comuna o revisa la clave en la configuración.',
+            )
+          }
+        })
+    })
+
+    return () => {
+      cancelled = true
+      cancelAnimationFrame(raf)
+      if (googleAutocompleteRef.current && window.google?.maps?.event) {
+        window.google.maps.event.clearInstanceListeners(googleAutocompleteRef.current)
+        googleAutocompleteRef.current = null
+      }
+    }
+  }, [step, googleMapsKey, setWizard])
+
   const handleUseLocation = async () => {
     if (!navigator.geolocation) {
-      setLocError('Tu navegador no soporta geolocalización')
+      setLocError('Tu navegador no permite geolocalización.')
       return
     }
     setLocLoading(true)
@@ -122,7 +195,7 @@ export default function Wizard() {
       const url = `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json&accept-language=es&zoom=18`
       const resp = await fetch(url, { headers: { Accept: 'application/json' } })
       if (!resp.ok) {
-        setLocError('No pudimos consultar el mapa. Buscá la comuna abajo.')
+        setLocError('No pudimos consultar el mapa. Busca la comuna abajo.')
         return
       }
       const data = await resp.json()
@@ -160,21 +233,21 @@ export default function Wizard() {
       if (found) {
         setComunaInput(found.nombre)
         setComunaList([])
-        setWizard({ comuna: String(found.codigo), comunaNombre: found.nombre })
+        setWizard({ comuna: String(found.codigo), comunaNombre: found.nombre, direccionCliente: '' })
         return
       }
 
       if (cityLine) setComunaInput(cityLine)
-      setLocError('No encontramos esa zona en el listado de comunas. Refiná la búsqueda arriba.')
+      setLocError('No encontramos esa zona en el listado de comunas. Prueba con otra búsqueda o más arriba.')
     } catch (e) {
       const code = typeof e?.code === 'number' ? e.code : null
       if (code === 1)
-        setLocError('Ubicación bloqueada. Permití el acceso en el navegador o escribí la comuna.')
+        setLocError('Ubicación bloqueada. Permite el acceso en el navegador o escribe la comuna.')
       else if (code === 2)
-        setLocError('Ubicación no disponible. Escribí la comuna manualmente.')
+        setLocError('Ubicación no disponible. Escribe la comuna manualmente.')
       else if (code === 3)
-        setLocError('Tiempo agotado. Reintentá o escribí la comuna.')
-      else setLocError('No pudimos usar tu ubicación. Escribí la comuna.')
+        setLocError('Tiempo agotado. Intenta de nuevo o escribe la comuna.')
+      else setLocError('No pudimos usar tu ubicación. Escribe la comuna.')
     } finally {
       setLocLoading(false)
     }
@@ -227,7 +300,7 @@ export default function Wizard() {
             ref={inputRef}
             type="number" min="1" max="20"
             className={styles.input}
-            placeholder="Otra cantidad..."
+            placeholder="Otra cantidad…"
             value={qty > 6 ? qty : ''}
             onChange={e => setWizard({ cantidad: parseInt(e.target.value) || 1 })}
             onKeyDown={e => e.key === 'Enter' && canContinue() && goNext()}
@@ -323,6 +396,28 @@ export default function Wizard() {
     const isSelected = !!wizard.comuna
     return (
       <div className={styles.stepContent}>
+        {googleMapsKey ? (
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.08 }}
+            className={styles.googleAddressBlock}
+          >
+            <p className={styles.addressHint}>
+              Escribe la dirección desde donde estás (calle y número, comuna o referencia). Solo direcciones en Chile.
+            </p>
+            <input
+              ref={addressInputRef}
+              type="text"
+              className={`${styles.input} ${styles.inputLg}`}
+              placeholder="Ej: Av. Apoquindo 3000, Las Condes"
+              autoComplete="off"
+              name="direccion-chile-google"
+              defaultValue=""
+            />
+          </motion.div>
+        ) : null}
+
         <motion.button
           initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
           className={styles.locBtn}
@@ -330,7 +425,7 @@ export default function Wizard() {
           disabled={locLoading}
           type="button">
           <span className={styles.locIcon}>{locLoading ? '⏳' : '📍'}</span>
-          {locLoading ? 'Detectando ubicación…' : 'Usar mi ubicación'}
+          {locLoading ? 'Detectando tu ubicación…' : 'Usar mi ubicación actual'}
         </motion.button>
 
         {locError && (
@@ -341,7 +436,7 @@ export default function Wizard() {
 
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}
           className={styles.locDivider}>
-          <span>o escríbela</span>
+          <span>o escribe la comuna</span>
         </motion.div>
 
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}
@@ -350,12 +445,12 @@ export default function Wizard() {
             ref={inputRef}
             type="text"
             className={`${styles.input} ${styles.inputLg} ${isSelected ? styles.inputOk : ''}`}
-            placeholder="Buscar comuna..."
+            placeholder="Buscar comuna…"
             value={comunaInput}
             onChange={e => {
               setComunaInput(e.target.value)
               setLocError('')
-              if (wizard.comuna) setWizard({ comuna: '', comunaNombre: '' })
+              if (wizard.comuna) setWizard({ comuna: '', comunaNombre: '', direccionCliente: '' })
             }}
             onKeyDown={e => e.key === 'Enter' && canContinue() && goNext()}
           />
@@ -366,7 +461,7 @@ export default function Wizard() {
                 <button key={c.codigo} className={styles.comunaItem}
                   onClick={() => {
                     setComunaInput(c.nombre); setComunaList([])
-                    setWizard({ comuna: c.codigo, comunaNombre: c.nombre })
+                    setWizard({ comuna: c.codigo, comunaNombre: c.nombre, direccionCliente: '' })
                     setTimeout(goNext, 150)
                   }}>
                   <span>{c.nombre}</span>
@@ -426,7 +521,7 @@ export default function Wizard() {
         </motion.div>
         <motion.button initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }}
           className={styles.skipBtn} onClick={goNext}>
-          Omitir por ahora →
+          Omitir por ahora
         </motion.button>
       </div>
     )
@@ -445,12 +540,12 @@ export default function Wizard() {
   }
 
   const STEP_SUBTITLES = {
-    cantidad:  'Selecciona la cantidad que deseas cotizar',
+    cantidad:  'Selecciona la cantidad que quieres cotizar',
     necesidad: 'Selecciona el tipo de servicio que te interesa',
-    medida:    'La encuentras en el costado del neumático. Ej: 205/55R16',
-    comuna:    'Ciudad o comuna para instalación o despacho',
-    fecha:     'Te ayuda a mostrarte las opciones más rápidas',
-    email:     'Opcional — te enviamos precios y disponibilidad',
+    medida:    'La puedes ver en el costado del neumático. Ejemplo: 205/55R16',
+    comuna:    'Comuna o ciudad para instalación o despacho a domicilio',
+    fecha:     'Así te mostramos las opciones más rápidas',
+    email:     'Opcional: te mandamos precios y disponibilidad',
   }
 
   const STEP_QUESTIONS = {

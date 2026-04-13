@@ -1,16 +1,29 @@
 <!doctype html>
-<html lang="en">
+<html lang="es-CL">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link id="ecommerce-favicon-link" rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>TireMax | Encuentra los neumáticos perfectos para tu vehículo</title>
-    <meta name="description" content="Descubre los mejores neumáticos para tu vehículo con nuestra herramienta inteligente. Responde algunas preguntas y recibe recomendaciones personalizadas." />
+    <title>Neumáticos | Cotiza según tu vehículo y comuna</title>
+    <meta name="description" content="Encuentra neumáticos en Chile: responde unas preguntas y recibe recomendaciones según medida, comuna y tipo de servicio." />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700;0,14..32,800;1,14..32,400&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
   </head>
   <body>
+    <!--
+      API Leadflow: si ves 404 en /api/*, el sitio estático no tiene backend.
+      Opción A — sin rebuild: asigna abajo la URL HTTPS del Node (termina en /api).
+      Opción B — build: variable VITE_API_URL en el hosting (scope BUILD_TIME).
+      Opción C — archivo api-config.json en la raíz del sitio con {"apiBaseUrl":"https://…/api"}
+    -->
+    <script>
+      (function () {
+        if (typeof window === 'undefined') return
+        var LEADFLOW_API = ''
+        if (LEADFLOW_API) window.__ECOMM_API_BASE__ = String(LEADFLOW_API).trim().replace(/\/$/, '')
+      })()
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>

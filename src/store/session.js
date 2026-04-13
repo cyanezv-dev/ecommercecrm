@@ -14,12 +14,14 @@ export const useSessionStore = create(
         aro: '',
         comuna: '',
         comunaNombre: '',
+        /** Dirección usada con Google Places (referencia), opcional */
+        direccionCliente: '',
         fecha: '',
         email: '',
       },
       setWizard: (data) => set(s => ({ wizard: { ...s.wizard, ...data } })),
       resetWizard: () => set({
-        wizard: { cantidad: 4, necesidad: '', medida: '', ancho: '', perfil: '', aro: '', comuna: '', comunaNombre: '', fecha: '', email: '' }
+        wizard: { cantidad: 4, necesidad: '', medida: '', ancho: '', perfil: '', aro: '', comuna: '', comunaNombre: '', direccionCliente: '', fecha: '', email: '' }
       }),
 
       // ── Favoritos ────────────────────────────────────

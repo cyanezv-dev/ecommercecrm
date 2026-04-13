@@ -1,10 +1,11 @@
 import * as React from "react"
 import { useState, useMemo, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { ArrowRight, ArrowLeft, Phone, ShieldCheck, Car, MapPin, ChevronDown, Check, Truck, Home, Store, Circle, Clock, Navigation, RotateCcw, X, Calendar, Zap, Settings2, CreditCard, Lock, ChevronRight } from "lucide-react"
+import { ArrowRight, ArrowLeft, Phone, ShieldCheck, Car, MapPin, ChevronDown, Check, Truck, Home, Store, Circle, Clock, Navigation, RotateCcw, X, Calendar, Zap, Settings2, CreditCard, Lock, ChevronRight, Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { useBrandStore } from "@/store/brand"
+import { comunasAutocompleteOptions } from "@/utils/comunasOptions"
 
 export interface Tire {
   id: string
@@ -212,6 +213,128 @@ function FilterDropdown({ label, value, options, onChange, icon }: FilterDropdow
                   {value === option.id && <Check className="w-4 h-4 text-primary" />}
                 </button>
               ))}
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
+export interface ComunaWizardSlice {
+  comuna?: string
+  comunaNombre?: string
+}
+
+interface ComunaAutocompleteFilterProps {
+  comunaWizard: ComunaWizardSlice
+  value: string
+  onChange: (value: string) => void
+}
+
+function ComunaAutocompleteFilter({ comunaWizard, value, onChange }: ComunaAutocompleteFilterProps) {
+  const [isOpen, setIsOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState("")
+
+  const nearbyRows = useMemo(
+    () => comunasAutocompleteOptions(comunaWizard, ""),
+    [comunaWizard.comuna, comunaWizard.comunaNombre],
+  )
+
+  const rows = useMemo(
+    () => comunasAutocompleteOptions(comunaWizard, searchQuery),
+    [comunaWizard.comuna, comunaWizard.comunaNombre, searchQuery],
+  )
+
+  const selectedLabel =
+    nearbyRows.find((o) => o.id === value)?.label ||
+    rows.find((o) => o.id === value)?.label ||
+    String(comunaWizard.comunaNombre || "").trim() ||
+    "Seleccionar"
+
+  useEffect(() => {
+    if (isOpen) setSearchQuery("")
+  }, [isOpen])
+
+  return (
+    <div className="relative min-w-[200px] max-w-[min(100vw-3rem,320px)]">
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className={cn(
+          "flex items-center gap-2 px-4 py-3 rounded-xl border-2 transition-all duration-200 text-left w-full",
+          "hover:border-primary hover:bg-card",
+          isOpen ? "border-primary bg-card shadow-md" : "border-border bg-card",
+        )}
+      >
+        <span className="text-accent shrink-0">
+          <MapPin className="w-4 h-4" />
+        </span>
+        <div className="flex-1 min-w-0">
+          <span className="block text-xs text-muted-foreground uppercase tracking-wide">Comuna</span>
+          <span className="block text-sm font-medium text-foreground truncate">{selectedLabel}</span>
+        </div>
+        <ChevronDown
+          className={cn(
+            "w-4 h-4 text-muted-foreground transition-transform shrink-0",
+            isOpen && "rotate-180",
+          )}
+        />
+      </button>
+
+      <AnimatePresence>
+        {isOpen && (
+          <>
+            <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} aria-hidden />
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.15 }}
+              className="absolute top-full left-0 right-0 mt-2 z-50 bg-card border border-border rounded-xl shadow-lg overflow-hidden flex flex-col max-h-80"
+            >
+              <div className="p-2 border-b border-border">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+                  <input
+                    type="search"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Buscar comuna…"
+                    className="w-full pl-9 pr-3 py-2.5 text-sm rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                    autoFocus
+                  />
+                </div>
+                {!searchQuery.trim() && (
+                  <p className="px-2 pt-2 text-[11px] text-muted-foreground">Primero tu región; escribe para ver todo Chile</p>
+                )}
+              </div>
+              <div className="overflow-y-auto py-1 min-h-0">
+                {rows.length === 0 ? (
+                  <p className="px-4 py-6 text-sm text-muted-foreground text-center">Sin coincidencias</p>
+                ) : (
+                  rows.map((option) => (
+                    <button
+                      key={option.id || option.label}
+                      type="button"
+                      disabled={!option.id}
+                      onClick={() => {
+                        if (!option.id) return
+                        onChange(option.id)
+                        setIsOpen(false)
+                      }}
+                      className={cn(
+                        "w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors",
+                        option.id ? "hover:bg-muted" : "opacity-60 cursor-not-allowed",
+                        value === option.id && "bg-primary/5",
+                      )}
+                    >
+                      <span className="flex-1 text-sm text-foreground">{option.label}</span>
+                      {value === option.id && <Check className="w-4 h-4 text-primary shrink-0" />}
+                    </button>
+                  ))
+                )}
+              </div>
             </motion.div>
           </>
         )}
@@ -1117,8 +1240,8 @@ export interface ResultsPageProps {
   isLoading?: boolean
   /** Opciones del filtro medida (p. ej. una sola fila desde el wizard) */
   sizeFilterOptions: { id: string; label: string }[]
-  /** Opciones del filtro comuna (desde wizard.comuna) */
-  comunaFilterOptions: { id: string; label: string }[]
+  /** Comuna del wizard (para priorizar región y autocomplete nacional) */
+  comunaWizard: ComunaWizardSlice
   initialQuantity: number
   initialSizeId: string
   initialComunaId: string
@@ -1149,7 +1272,7 @@ export function ResultsPage({
   workshops: workshopsProp,
   isLoading,
   sizeFilterOptions,
-  comunaFilterOptions,
+  comunaWizard,
   initialQuantity,
   initialSizeId,
   initialComunaId,
@@ -1198,7 +1321,14 @@ export function ResultsPage({
   const workshops = workshopsProp
 
   const deliveryLabel = deliveryOptions.find((d) => d.id === filters.delivery)?.label || ""
-  const comunaLabel = comunaFilterOptions.find((c) => c.id === filters.comuna)?.label || ""
+  const comunaLabel = useMemo(() => {
+    const rows = comunasAutocompleteOptions(comunaWizard, "")
+    return (
+      rows.find((c) => c.id === filters.comuna)?.label ||
+      String(comunaWizard.comunaNombre || "").trim() ||
+      ""
+    )
+  }, [comunaWizard.comuna, comunaWizard.comunaNombre, filters.comuna])
   const sizeLabel = sizeFilterOptions.find((s) => s.id === filters.size)?.label || ""
 
   if (isLoading) {
@@ -1238,7 +1368,7 @@ export function ResultsPage({
             ) : null}
             <p className="text-[11px] leading-relaxed">
               Si ves claves como <code className="rounded bg-background px-1">data</code> o{" "}
-              <code className="rounded bg-background px-1">result</code> pero ningún listado, el formato del CRM no coincide con lo que espera el front: enviá un ejemplo de JSON del endpoint{" "}
+              <code className="rounded bg-background px-1">result</code> pero ningún listado, el formato del CRM no coincide con lo que espera el front: envía un ejemplo de JSON del endpoint{" "}
               <code className="rounded bg-background px-1">/catalog</code> para adaptar el parser.
             </p>
           </div>
@@ -1337,12 +1467,10 @@ export function ResultsPage({
               icon={<Circle className="w-4 h-4" />}
             />
             
-            <FilterDropdown
-              label="Comuna"
+            <ComunaAutocompleteFilter
+              comunaWizard={comunaWizard}
               value={filters.comuna}
-              options={comunaFilterOptions}
-              onChange={(value) => setFilters(prev => ({ ...prev, comuna: value }))}
-              icon={<MapPin className="w-4 h-4" />}
+              onChange={(value) => setFilters((prev) => ({ ...prev, comuna: value }))}
             />
             
             <FilterDropdown
@@ -1374,7 +1502,7 @@ export function ResultsPage({
           
           {/* Left Sidebar - Filters */}
           <aside className="lg:w-60 shrink-0 hidden lg:block">
-            <div className="lg:sticky lg:top-[220px] space-y-4 max-h-[calc(100vh-240px)] overflow-y-auto scrollbar-thin pr-2 pb-8">
+            <div className="lg:sticky lg:top-[220px] lg:self-start space-y-4 pb-8">
               
               {/* Disponibilidad / Urgencia */}
               <div className="bg-card rounded-xl border border-border p-4">
@@ -1559,7 +1687,7 @@ export function ResultsPage({
 
           {/* Sidebar with workshops */}
           <aside className="lg:w-72 shrink-0 hidden lg:block">
-            <div className="lg:sticky lg:top-[220px] space-y-4 max-h-[calc(100vh-240px)] overflow-y-auto scrollbar-thin pr-2 pb-8">
+            <div className="lg:sticky lg:top-[220px] lg:self-start space-y-4 pb-8">
               {/* Opción más económica */}
               <div className="bg-card rounded-2xl border border-border p-5">
                 <div className="flex items-center gap-3 mb-4">
@@ -1625,7 +1753,7 @@ export function ResultsPage({
                       {workshops.length} talleres disponibles cerca de ti
                     </p>
                     
-                    <div className="space-y-3 max-h-[240px] overflow-y-auto pr-1 scrollbar-thin">
+                    <div className="space-y-3">
                       {workshops.map((workshop) => (
                         <WorkshopCard
                           key={workshop.id}

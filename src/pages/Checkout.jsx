@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useSessionStore } from '@/store/session'
 import { saveQuote, fetchComunas } from '@/utils/api'
-import { fmtPrice } from '@/utils/format'
+import { fmtPrice, unitPriceWithIva } from '@/utils/format'
 import styles from './Checkout.module.css'
 
 const ENTREGAS = [
@@ -34,7 +34,7 @@ export default function Checkout() {
   }
 
   const cantidad = wizard.cantidad || 4
-  const precio   = producto.price_offer || producto.precioOferta || 0
+  const precio   = unitPriceWithIva(producto)
   const total    = precio * cantidad
   const medida   = producto.custom_fields?.medida || producto.medida
 
