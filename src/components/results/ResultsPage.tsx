@@ -819,6 +819,7 @@ function ReservationModal({ tire, quantity, deliveryType, workshops, comunaLabel
   const [selectedTime, setSelectedTime] = useState<string>("")
   const [showCheckout, setShowCheckout] = useState(false)
   const [needsInvoice, setNeedsInvoice] = useState(false)
+  const [homeAddress, setHomeAddress] = useState<string>("")
 
   if (!tire) return null
 
@@ -1087,19 +1088,119 @@ function ReservationModal({ tire, quantity, deliveryType, workshops, comunaLabel
               </AnimatePresence>
             </div>
           ) : (
-            <div className="p-5">
-              <div className="bg-muted/50 rounded-xl p-6 text-center">
-                <div className="w-14 h-14 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
-                  <Store className="w-7 h-7 text-muted-foreground" />
+            <div className="p-5 space-y-5">
+              {/* Dirección de entrega/instalación */}
+              <div>
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                    {deliveryType === "instalacion-domicilio" ? <Home className="w-5 h-5 text-primary" /> : <Truck className="w-5 h-5 text-primary" />}
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-foreground">
+                      {deliveryType === "instalacion-domicilio" ? "Instalación a domicilio" : "Despacho a domicilio"}
+                    </h3>
+                    <p className="text-sm text-muted-foreground">
+                      {deliveryType === "instalacion-domicilio"
+                        ? "Un técnico irá a instalar los neumáticos donde tú estés"
+                        : "Recibe tus neumáticos en la dirección que indiques"}
+                    </p>
+                  </div>
                 </div>
-                <h3 className="font-semibold text-foreground mb-2">¿Prefieres instalación en taller?</h3>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Cambia a Serviteca para obtener instalación gratis y reservar tu cita en uno de nuestros talleres en {comunaLabel}.
-                </p>
-                <Button variant="outline" onClick={onChangeDelivery} className="gap-2">
-                  <Store className="w-4 h-4" />
-                  Cambiar a Serviteca
-                </Button>
+
+                <label className="text-sm font-medium text-foreground block mb-2">
+                  {deliveryType === "instalacion-domicilio" ? "¿Dónde instalamos?" : "Dirección de entrega"}
+                </label>
+                <input
+                  type="text"
+                  placeholder={deliveryType === "instalacion-domicilio" ? "Ej: Av. Apoquindo 4500, Las Condes" : "Ej: Av. Providencia 1234, Providencia"}
+                  value={homeAddress}
+                  onChange={e => setHomeAddress(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl border-2 border-border bg-background text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none transition-colors text-sm"
+                />
+              </div>
+
+              {/* Selector de fecha — solo para instalación a domicilio */}
+              {deliveryType === "instalacion-domicilio" && (
+                <div>
+                  <label className="text-sm font-medium text-foreground block mb-3">Fecha de instalación</label>
+                  <div className="grid grid-cols-4 gap-2">
+                    {(() => {
+                      const dates = []
+                      const today = new Date()
+                      for (let i = 1; i <= 8; i++) {
+                        const date = new Date(today)
+                        date.setDate(today.getDate() + i)
+                        if (date.getDay() !== 0) dates.push(date) // sin domingos
+                      }
+                      return dates.slice(0, 7).map((date) => {
+                        const dateStr = date.toISOString().split('T')[0]
+                        const isSelected = selectedDate === dateStr
+                        const dayName = date.toLocaleDateString('es-CL', { weekday: 'short' })
+                        const dayNum = date.getDate()
+                        const monthName = date.toLocaleDateString('es-CL', { month: 'short' })
+                        return (
+                          <button
+                            key={dateStr}
+                            onClick={() => { setSelectedDate(dateStr); setSelectedTime("") }}
+                            className={cn(
+                              "flex flex-col items-center p-3 rounded-xl border-2 transition-all",
+                              isSelected ? "border-primary bg-primary text-primary-foreground" : "border-border hover:border-primary/50 bg-card"
+                            )}
+                          >
+                            <span className={cn("text-[10px] uppercase font-medium", isSelected ? "text-primary-foreground/80" : "text-muted-foreground")}>{dayName}</span>
+                            <span className={cn("text-xl font-semibold my-0.5", isSelected ? "text-primary-foreground" : "text-foreground")}>{dayNum}</span>
+                            <span className={cn("text-[10px] uppercase", isSelected ? "text-primary-foreground/80" : "text-muted-foreground")}>{monthName}</span>
+                          </button>
+                        )
+                      })
+                    })()}
+                  </div>
+
+                  {selectedDate && (
+                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-4">
+                      <label className="text-sm font-medium text-foreground block mb-2">Horario disponible</label>
+                      <div className="grid grid-cols-2 gap-3">
+                        <button
+                          onClick={() => setSelectedTime("AM")}
+                          className={cn("p-4 rounded-xl border-2 text-left transition-all", selectedTime === "AM" ? "border-primary bg-primary/5" : "border-border hover:border-primary/50")}
+                        >
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-lg font-semibold text-foreground">AM</span>
+                            <div className={cn("w-5 h-5 rounded-full border-2 flex items-center justify-center", selectedTime === "AM" ? "border-primary bg-primary" : "border-muted-foreground/30")}>
+                              {selectedTime === "AM" && <Check className="w-3 h-3 text-primary-foreground" />}
+                            </div>
+                          </div>
+                          <p className="text-sm text-muted-foreground">09:00 - 12:00</p>
+                        </button>
+                        <button
+                          onClick={() => setSelectedTime("PM")}
+                          className={cn("p-4 rounded-xl border-2 text-left transition-all", selectedTime === "PM" ? "border-primary bg-primary/5" : "border-border hover:border-primary/50")}
+                        >
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-lg font-semibold text-foreground">PM</span>
+                            <div className={cn("w-5 h-5 rounded-full border-2 flex items-center justify-center", selectedTime === "PM" ? "border-primary bg-primary" : "border-muted-foreground/30")}>
+                              {selectedTime === "PM" && <Check className="w-3 h-3 text-primary-foreground" />}
+                            </div>
+                          </div>
+                          <p className="text-sm text-muted-foreground">13:00 - 18:00</p>
+                        </button>
+                      </div>
+                    </motion.div>
+                  )}
+                </div>
+              )}
+
+              {/* Sugerencia serviteca */}
+              <div className="bg-muted/40 rounded-xl p-4 flex items-start gap-3">
+                <Store className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-xs text-muted-foreground">
+                    ¿Sabías que en Serviteca la instalación es <span className="font-semibold text-foreground">gratis</span>?
+                  </p>
+                  <button onClick={onChangeDelivery} className="text-xs text-primary font-medium mt-0.5 hover:underline">
+                    Cambiar a Serviteca →
+                  </button>
+                </div>
               </div>
             </div>
           )}
@@ -1114,7 +1215,11 @@ function ReservationModal({ tire, quantity, deliveryType, workshops, comunaLabel
               </Button>
               <Button 
                 className="flex-1 gap-2"
-                disabled={deliveryType === "serviteca" && (!selectedWorkshop || !selectedDate || !selectedTime)}
+                disabled={
+                  (deliveryType === "serviteca" && (!selectedWorkshop || !selectedDate || !selectedTime)) ||
+                  (deliveryType === "instalacion-domicilio" && (!homeAddress.trim() || !selectedDate || !selectedTime)) ||
+                  (deliveryType === "despacho" && !homeAddress.trim())
+                }
                 onClick={() => setShowCheckout(true)}
               >
                 {deliveryType === "serviteca" ? "Confirmar reserva" : "Continuar al pago"}
@@ -2076,26 +2181,56 @@ export function ResultsPage({
                       </Button>
                     </div>
                   </>
-                ) : (
-                  <div className="text-center py-6">
-                    <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mx-auto mb-3">
-                      <Truck className="w-6 h-6 text-muted-foreground" />
+                ) : filters.delivery === "instalacion-domicilio" ? (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Home className="w-4 h-4 text-primary" />
+                      <p className="text-sm font-medium text-foreground">Instalación a domicilio</p>
                     </div>
-                    <p className="text-sm text-muted-foreground mb-4">
-                      Has seleccionado <span className="font-medium text-foreground">{deliveryLabel}</span>
+                    <p className="text-xs text-muted-foreground">Un técnico certificado va a donde estés para instalar tus neumáticos.</p>
+                    <div className="bg-muted/50 rounded-xl p-3 space-y-1 text-xs text-muted-foreground">
+                      <div className="flex justify-between"><span>Despacho</span><span className="font-medium text-foreground">$5.990</span></div>
+                      <div className="flex justify-between"><span>Instalación</span><span className="font-medium text-foreground">$19.990</span></div>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Selecciona tu neumático y elige la fecha al confirmar el pedido.
                     </p>
-                    <p className="text-xs text-muted-foreground mb-4">
-                      Si prefieres instalación en taller, cambia el filtro de entrega a &quot;Serviteca&quot;
-                    </p>
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => setFilters(prev => ({ ...prev, delivery: "serviteca" }))}
-                      className="gap-2"
-                    >
-                      <Store className="w-4 h-4" />
-                      Cambiar a Serviteca
-                    </Button>
+                    <div className="pt-2 border-t border-border">
+                      <p className="text-xs text-muted-foreground mb-2">¿Sabías que en Serviteca la instalación es <span className="font-semibold text-foreground">gratis</span>?</p>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="w-full gap-2"
+                        onClick={() => setFilters(prev => ({ ...prev, delivery: "serviteca" }))}
+                      >
+                        <Store className="w-4 h-4" />
+                        Cambiar a Serviteca
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Truck className="w-4 h-4 text-primary" />
+                      <p className="text-sm font-medium text-foreground">Despacho a domicilio</p>
+                    </div>
+                    <p className="text-xs text-muted-foreground">Recibe tus neumáticos directamente en tu domicilio o lugar de trabajo.</p>
+                    <div className="bg-muted/50 rounded-xl p-3 text-xs text-muted-foreground">
+                      <div className="flex justify-between"><span>Costo despacho</span><span className="font-medium text-foreground">$5.990</span></div>
+                    </div>
+                    <p className="text-xs text-muted-foreground">Indica la dirección de entrega al confirmar el pedido.</p>
+                    <div className="pt-2 border-t border-border">
+                      <p className="text-xs text-muted-foreground mb-2">¿Sabías que en Serviteca la instalación es <span className="font-semibold text-foreground">gratis</span>?</p>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="w-full gap-2"
+                        onClick={() => setFilters(prev => ({ ...prev, delivery: "serviteca" }))}
+                      >
+                        <Store className="w-4 h-4" />
+                        Cambiar a Serviteca
+                      </Button>
+                    </div>
                   </div>
                 )}
               </div>
