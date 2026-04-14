@@ -1643,7 +1643,7 @@ export function ResultsPage({
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
             {brandLogoUrl ? (
-              <img src={brandLogoUrl} alt={brandName} className="h-8 w-auto max-w-[180px] object-contain" />
+              <img src={brandLogoUrl} alt={brandName} className="h-14 w-auto max-w-[220px] object-contain" />
             ) : (
               <>
                 <Car className="w-6 h-6 text-accent" />
@@ -2138,7 +2138,7 @@ export function ResultsPage({
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="flex items-center gap-2">
             {brandLogoUrl ? (
-              <img src={brandLogoUrl} alt={brandName} className="h-7 w-auto max-w-[160px] object-contain" />
+              <img src={brandLogoUrl} alt={brandName} className="h-10 w-auto max-w-[180px] object-contain" />
             ) : (
               <>
                 <Car className="w-5 h-5 text-accent" />
