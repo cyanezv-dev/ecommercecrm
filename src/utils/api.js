@@ -699,7 +699,7 @@ export async function fetchCatalogMedidas({ q = '', limit = 300 } = {}) {
 }
 
 /** Talleres disponibles para instalación */
-export const fetchWorkshops = ({ fecha, aro, lat, lng } = {}) => {
+export const fetchWorkshops = ({ fecha, aro, lat, lng, comuna } = {}) => {
   const q = new URLSearchParams()
   if (fecha) q.set('fecha', String(fecha))
   if (aro) q.set('aro', String(aro))
@@ -707,6 +707,7 @@ export const fetchWorkshops = ({ fecha, aro, lat, lng } = {}) => {
     q.set('lat', String(lat))
     q.set('lng', String(lng))
   }
+  if (comuna) q.set('comuna', String(comuna))
   const qs = q.toString()
   return api.get(`/attention/workshops${qs ? `?${qs}` : ''}`)
 }

@@ -1487,6 +1487,13 @@ export interface ResultsPageProps {
   }) => void
   /** Búsqueda remota de medidas al escribir en el desplegable (param `q` del API). */
   fetchMedidaOptionsForSearch?: (query: string) => Promise<{ id: string; label: string }[]>
+  /**
+   * IDs de opciones de entrega disponibles según el backend (basado en talleres/domicilio reales).
+   * Si es null, se muestran todas las opciones sin restricción.
+   */
+  availableDeliveryOptions?: string[] | null
+  /** Mensajes de indisponibilidad por opción { serviteca: "...", "instalacion-domicilio": "..." } */
+  deliveryMensajes?: Record<string, string>
 }
 
 export function ResultsPage({
@@ -1504,6 +1511,8 @@ export function ResultsPage({
   catalogEmptyHint,
   onFiltersSync,
   fetchMedidaOptionsForSearch,
+  availableDeliveryOptions,
+  deliveryMensajes = {},
 }: ResultsPageProps) {
   const brandName = useBrandStore((s) => s.name)
   const brandLogoUrl = useBrandStore((s) => s.logoUrl)
@@ -1543,6 +1552,28 @@ export function ResultsPage({
   }, [tires])
 
   const workshops = workshopsProp
+
+  // Filtrar las opciones de entrega según disponibilidad real del backend
+  const activeDeliveryOptions = useMemo(() => {
+    if (!availableDeliveryOptions) return deliveryOptions
+    return deliveryOptions.filter((d) => availableDeliveryOptions.includes(d.id))
+  }, [availableDeliveryOptions])
+
+  // Si la opción seleccionada ya no está disponible, auto-cambiar a la primera disponible
+  useEffect(() => {
+    if (!availableDeliveryOptions) return
+    if (!availableDeliveryOptions.includes(filters.delivery)) {
+      const fallback = activeDeliveryOptions[0]?.id
+      if (fallback) setFilters((prev) => ({ ...prev, delivery: fallback }))
+    }
+  }, [availableDeliveryOptions, activeDeliveryOptions])
+
+  // Mensaje de indisponibilidad para la opción seleccionada
+  const deliveryUnavailableMsg = useMemo(() => {
+    if (!availableDeliveryOptions) return null
+    if (availableDeliveryOptions.includes(filters.delivery)) return null
+    return deliveryMensajes[filters.delivery] || null
+  }, [availableDeliveryOptions, filters.delivery, deliveryMensajes])
 
   const deliveryLabel = deliveryOptions.find((d) => d.id === filters.delivery)?.label || ""
   const comunaLabel = useMemo(() => {
@@ -1702,9 +1733,9 @@ export function ResultsPage({
             <FilterDropdown
               label="Entrega"
               value={filters.delivery}
-              options={deliveryOptions}
+              options={activeDeliveryOptions}
               onChange={(value) => setFilters(prev => ({ ...prev, delivery: value }))}
-              icon={deliveryOptions.find(d => d.id === filters.delivery)?.icon}
+              icon={activeDeliveryOptions.find(d => d.id === filters.delivery)?.icon}
             />
           </div>
 
@@ -1719,6 +1750,18 @@ export function ResultsPage({
             {" | "}
             <span className="font-semibold text-foreground">{deliveryLabel}</span>
           </motion.div>
+
+          {/* Banner de opción no disponible */}
+          {deliveryUnavailableMsg && (
+            <motion.div
+              initial={{ opacity: 0, y: -6 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mt-2 flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800"
+            >
+              <span className="shrink-0 mt-0.5">⚠️</span>
+              <span>{deliveryUnavailableMsg}</span>
+            </motion.div>
+          )}
         </div>
       </section>
 
@@ -1914,7 +1957,8 @@ export function ResultsPage({
           {/* Sidebar with workshops */}
           <aside className="lg:w-72 shrink-0 hidden lg:block">
             <div className="lg:sticky lg:top-[220px] lg:self-start space-y-4 pb-8">
-              {/* Opción más económica */}
+              {/* Opción más económica — solo si hay servitecas disponibles */}
+              {(!availableDeliveryOptions || availableDeliveryOptions.includes("serviteca")) && (
               <div className="bg-card rounded-2xl border border-border p-5">
                 <div className="flex items-center gap-3 mb-4">
                   <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center">
@@ -1965,6 +2009,7 @@ export function ResultsPage({
                   )}
                 </div>
               </div>
+              )}
 
               {/* Talleres */}
               <div className="bg-muted/50 rounded-2xl border border-border p-5">
@@ -1972,8 +2017,43 @@ export function ResultsPage({
                   <Store className="w-5 h-5 text-accent" />
                   <h3 className="font-semibold text-foreground">Talleres en {comunaLabel}</h3>
                 </div>
-                
-                {filters.delivery === "serviteca" ? (
+
+                {/* Sin talleres en la zona */}
+                {availableDeliveryOptions && !availableDeliveryOptions.includes("serviteca") ? (
+                  <div className="text-center py-6">
+                    <div className="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center mx-auto mb-3">
+                      <span className="text-xl">📍</span>
+                    </div>
+                    <p className="text-sm font-medium text-foreground mb-1">
+                      No hay talleres en tu zona
+                    </p>
+                    <p className="text-xs text-muted-foreground mb-4">
+                      {deliveryMensajes["serviteca"] || "Selecciona despacho a domicilio para recibir tus neumáticos."}
+                    </p>
+                    {availableDeliveryOptions.includes("instalacion-domicilio") && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setFilters(prev => ({ ...prev, delivery: "instalacion-domicilio" }))}
+                        className="gap-2"
+                      >
+                        <Home className="w-4 h-4" />
+                        Instalación a domicilio
+                      </Button>
+                    )}
+                    {!availableDeliveryOptions.includes("instalacion-domicilio") && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setFilters(prev => ({ ...prev, delivery: "despacho" }))}
+                        className="gap-2"
+                      >
+                        <Truck className="w-4 h-4" />
+                        Despacho a domicilio
+                      </Button>
+                    )}
+                  </div>
+                ) : filters.delivery === "serviteca" ? (
                   <>
                     <p className="text-sm text-muted-foreground mb-4">
                       {workshops.length} talleres disponibles cerca de ti

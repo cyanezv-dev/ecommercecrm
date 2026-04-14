@@ -182,12 +182,23 @@ export default function Results() {
   const workshopAro = medidaQuery?.aro || wizard.aro
 
   const { data: workshopsRaw } = useQuery({
-    queryKey: ['workshops-results', workshopAro, wizard.comuna],
-    queryFn: () => fetchWorkshops({ aro: workshopAro }),
-    enabled: wizard.necesidad === 'instalacion' && !!workshopAro,
+    queryKey: ['workshops-results', workshopAro, wizard.comuna, wizard.comunaNombre],
+    queryFn: () => fetchWorkshops({ aro: workshopAro, comuna: wizard.comunaNombre || wizard.comuna }),
+    staleTime: 2 * 60 * 1000,
   })
 
   const workshopsList = useMemo(() => asWorkshopList(workshopsRaw), [workshopsRaw])
+
+  const availableDeliveryOptions = useMemo(() => {
+    if (!workshopsRaw) return null
+    if (Array.isArray(workshopsRaw)) return null // respuesta legacy sin opciones
+    return workshopsRaw.opciones_disponibles || null
+  }, [workshopsRaw])
+
+  const deliveryMensajes = useMemo(() => {
+    if (!workshopsRaw || Array.isArray(workshopsRaw)) return {}
+    return workshopsRaw.mensajes || {}
+  }, [workshopsRaw])
 
   const products = catalogData.products || []
 
@@ -429,6 +440,8 @@ export default function Results() {
       onFiltersSync={syncFiltersToWizard}
       onCheckout={handleCheckout}
       fetchMedidaOptionsForSearch={fetchMedidaOptionsForSearch}
+      availableDeliveryOptions={availableDeliveryOptions}
+      deliveryMensajes={deliveryMensajes}
     />
   )
 }
