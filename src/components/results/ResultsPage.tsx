@@ -1872,11 +1872,11 @@ export function ResultsPage({
 
       {/* Main content with sidebars */}
       <div className="max-w-[1400px] mx-auto px-4 lg:px-6 py-8">
-        <div className="flex flex-col lg:flex-row gap-6 lg:items-start">
+        <div className="flex flex-col lg:flex-row gap-6">
           
           {/* Left Sidebar - Filters */}
           <aside className="lg:w-60 shrink-0 hidden lg:block">
-            <div className="lg:sticky lg:top-[220px] lg:self-start space-y-4 pb-8">
+            <div className="lg:sticky lg:top-[160px] space-y-4 overflow-y-auto max-h-[calc(100vh-180px)] pb-4 pr-1">
               
               {/* Disponibilidad / Urgencia */}
               <div className="bg-card rounded-xl border border-border p-4">
@@ -2061,7 +2061,7 @@ export function ResultsPage({
 
           {/* Sidebar with workshops */}
           <aside className="lg:w-72 shrink-0 hidden lg:block">
-            <div className="lg:sticky lg:top-[220px] lg:self-start space-y-4 pb-8">
+            <div className="lg:sticky lg:top-[160px] space-y-4 overflow-y-auto max-h-[calc(100vh-180px)] pb-4 pr-1">
               {/* Opción más económica — solo si hay servitecas disponibles */}
               {(!availableDeliveryOptions || availableDeliveryOptions.includes("serviteca")) && (
               <div className="bg-card rounded-2xl border border-border p-5">
