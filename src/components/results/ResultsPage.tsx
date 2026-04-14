@@ -2062,100 +2062,76 @@ export function ResultsPage({
           {/* Sidebar with workshops */}
           <aside className="lg:w-72 shrink-0 hidden lg:block">
             <div className="lg:sticky lg:top-[160px] space-y-4 overflow-y-auto max-h-[calc(100vh-180px)] pb-4 pr-1">
-              {/* Opción más económica — solo si hay servitecas disponibles */}
-              {(!availableDeliveryOptions || availableDeliveryOptions.includes("serviteca")) && (
-              <div className="bg-card rounded-2xl border border-border p-5">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center">
-                    <EconomicIcon className="w-5 h-5 text-foreground" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-foreground text-sm">Opción más económica</h3>
-                    <p className="text-xs text-muted-foreground">Optimiza tu compra</p>
-                  </div>
-                </div>
-                
-                <div className="bg-muted/50 rounded-xl p-4 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Store className="w-4 h-4 text-muted-foreground" />
-                      <span className="text-sm font-medium text-foreground">Retiro en Serviteca</span>
-                    </div>
-                    {filters.delivery === "serviteca" && (
-                      <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">Seleccionado</span>
-                    )}
-                  </div>
-                  
-                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                    <span className="flex items-center gap-1.5">
-                      <Check className="w-3.5 h-3.5" /> Instalación gratis
-                    </span>
-                    <span className="flex items-center gap-1.5">
-                      <Check className="w-3.5 h-3.5" /> Sin costo de envío
-                    </span>
-                  </div>
-                  
-                  {filters.delivery !== "serviteca" && (
-                    <>
-                      <div className="pt-2 border-t border-border">
-                        <p className="text-xs text-muted-foreground mb-3">
-                          Ahorra <span className="font-semibold text-foreground">$25.980</span> vs instalación a domicilio
-                        </p>
-                        <Button 
-                          size="sm" 
-                          variant="outline"
-                          className="w-full"
-                          onClick={() => setFilters(prev => ({ ...prev, delivery: "serviteca" }))}
-                        >
-                          Cambiar a Serviteca
-                        </Button>
-                      </div>
-                    </>
-                  )}
-                </div>
-              </div>
-              )}
-
-              {/* Talleres */}
+              {/* Talleres / Entrega */}
               <div className="bg-muted/50 rounded-2xl border border-border p-5">
                 <div className="flex items-center gap-2 mb-4">
-                  <Store className="w-5 h-5 text-accent" />
-                  <h3 className="font-semibold text-foreground">Talleres en {comunaLabel}</h3>
+                  {availableDeliveryOptions && !availableDeliveryOptions.includes("serviteca") && !availableDeliveryOptions.includes("instalacion-domicilio") ? (
+                    <Truck className="w-5 h-5 text-accent" />
+                  ) : availableDeliveryOptions && !availableDeliveryOptions.includes("serviteca") ? (
+                    <Home className="w-5 h-5 text-accent" />
+                  ) : (
+                    <Store className="w-5 h-5 text-accent" />
+                  )}
+                  <h3 className="font-semibold text-foreground">
+                    {availableDeliveryOptions && !availableDeliveryOptions.includes("serviteca") && !availableDeliveryOptions.includes("instalacion-domicilio")
+                      ? `Entrega en ${comunaLabel}`
+                      : `Talleres en ${comunaLabel}`}
+                  </h3>
                 </div>
 
                 {/* Sin talleres en la zona */}
                 {availableDeliveryOptions && !availableDeliveryOptions.includes("serviteca") ? (
-                  <div className="text-center py-6">
-                    <div className="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center mx-auto mb-3">
-                      <span className="text-xl">📍</span>
-                    </div>
-                    <p className="text-sm font-medium text-foreground mb-1">
-                      No hay talleres en tu zona
-                    </p>
-                    <p className="text-xs text-muted-foreground mb-4">
-                      {deliveryMensajes["serviteca"] || "Selecciona despacho a domicilio para recibir tus neumáticos."}
-                    </p>
-                    {availableDeliveryOptions.includes("instalacion-domicilio") && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setFilters(prev => ({ ...prev, delivery: "instalacion-domicilio" }))}
-                        className="gap-2"
-                      >
-                        <Home className="w-4 h-4" />
-                        Instalación a domicilio
-                      </Button>
-                    )}
-                    {!availableDeliveryOptions.includes("instalacion-domicilio") && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setFilters(prev => ({ ...prev, delivery: "despacho" }))}
-                        className="gap-2"
-                      >
-                        <Truck className="w-4 h-4" />
-                        Despacho a domicilio
-                      </Button>
+                  <div className="space-y-3">
+                    {!availableDeliveryOptions.includes("instalacion-domicilio") ? (
+                      // Solo despacho disponible
+                      <>
+                        <div className="flex items-center gap-2 p-3 bg-blue-50 dark:bg-blue-950/30 rounded-xl">
+                          <Truck className="w-4 h-4 text-blue-600 shrink-0" />
+                          <p className="text-xs text-blue-700 dark:text-blue-300">
+                            No hay talleres ni instalación a domicilio en <strong>{comunaLabel}</strong>. Solo disponemos de despacho.
+                          </p>
+                        </div>
+                        <div className="bg-card rounded-xl p-3 space-y-1 text-xs text-muted-foreground">
+                          <div className="flex justify-between"><span>Costo despacho</span><span className="font-medium text-foreground">$5.990</span></div>
+                        </div>
+                        <p className="text-xs text-muted-foreground">Recibes los neumáticos en tu domicilio o lugar de trabajo. La instalación queda a tu cargo.</p>
+                      </>
+                    ) : (
+                      // No hay serviteca pero sí instalación a domicilio
+                      <>
+                        <div className="flex items-center gap-2 p-3 bg-amber-50 dark:bg-amber-950/30 rounded-xl">
+                          <Home className="w-4 h-4 text-amber-600 shrink-0" />
+                          <p className="text-xs text-amber-700 dark:text-amber-300">
+                            No hay talleres en <strong>{comunaLabel}</strong>, pero puedes agendar instalación a domicilio.
+                          </p>
+                        </div>
+                        <div className="bg-card rounded-xl p-3 space-y-1 text-xs text-muted-foreground">
+                          <div className="flex justify-between"><span>Despacho</span><span className="font-medium text-foreground">$5.990</span></div>
+                          <div className="flex justify-between"><span>Instalación</span><span className="font-medium text-foreground">$19.990</span></div>
+                        </div>
+                        {filters.delivery !== "instalacion-domicilio" && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="w-full gap-2"
+                            onClick={() => setFilters(prev => ({ ...prev, delivery: "instalacion-domicilio" }))}
+                          >
+                            <Home className="w-4 h-4" />
+                            Ver instalación a domicilio
+                          </Button>
+                        )}
+                        {availableDeliveryOptions.includes("despacho") && filters.delivery !== "despacho" && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="w-full gap-2 text-muted-foreground"
+                            onClick={() => setFilters(prev => ({ ...prev, delivery: "despacho" }))}
+                          >
+                            <Truck className="w-4 h-4" />
+                            Solo despacho (sin instalación)
+                          </Button>
+                        )}
+                      </>
                     )}
                   </div>
                 ) : filters.delivery === "serviteca" ? (
@@ -2195,18 +2171,20 @@ export function ResultsPage({
                     <p className="text-xs text-muted-foreground">
                       Selecciona tu neumático y elige la fecha al confirmar el pedido.
                     </p>
-                    <div className="pt-2 border-t border-border">
-                      <p className="text-xs text-muted-foreground mb-2">¿Sabías que en Serviteca la instalación es <span className="font-semibold text-foreground">gratis</span>?</p>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="w-full gap-2"
-                        onClick={() => setFilters(prev => ({ ...prev, delivery: "serviteca" }))}
-                      >
-                        <Store className="w-4 h-4" />
-                        Cambiar a Serviteca
-                      </Button>
-                    </div>
+                    {availableDeliveryOptions?.includes("serviteca") && (
+                      <div className="pt-2 border-t border-border">
+                        <p className="text-xs text-muted-foreground mb-2">¿Sabías que en Serviteca la instalación es <span className="font-semibold text-foreground">gratis</span>?</p>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="w-full gap-2"
+                          onClick={() => setFilters(prev => ({ ...prev, delivery: "serviteca" }))}
+                        >
+                          <Store className="w-4 h-4" />
+                          Cambiar a Serviteca
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="space-y-3">
@@ -2219,18 +2197,20 @@ export function ResultsPage({
                       <div className="flex justify-between"><span>Costo despacho</span><span className="font-medium text-foreground">$5.990</span></div>
                     </div>
                     <p className="text-xs text-muted-foreground">Indica la dirección de entrega al confirmar el pedido.</p>
-                    <div className="pt-2 border-t border-border">
-                      <p className="text-xs text-muted-foreground mb-2">¿Sabías que en Serviteca la instalación es <span className="font-semibold text-foreground">gratis</span>?</p>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="w-full gap-2"
-                        onClick={() => setFilters(prev => ({ ...prev, delivery: "serviteca" }))}
-                      >
-                        <Store className="w-4 h-4" />
-                        Cambiar a Serviteca
-                      </Button>
-                    </div>
+                    {availableDeliveryOptions?.includes("serviteca") && (
+                      <div className="pt-2 border-t border-border">
+                        <p className="text-xs text-muted-foreground mb-2">¿Sabías que en Serviteca la instalación es <span className="font-semibold text-foreground">gratis</span>?</p>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="w-full gap-2"
+                          onClick={() => setFilters(prev => ({ ...prev, delivery: "serviteca" }))}
+                        >
+                          <Store className="w-4 h-4" />
+                          Cambiar a Serviteca
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
